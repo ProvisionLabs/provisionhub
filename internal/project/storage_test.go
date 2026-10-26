@@ -53,7 +53,7 @@ func TestCheckDestinationRejectsFileAncestor(t *testing.T) {
 	if err := os.WriteFile(parent, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := CheckDestination(filepath.Join(parent, "child")); err == nil || !strings.Contains(err.Error(), "contains a file") {
+	if _, _, err := CheckDestination(filepath.Join(parent, "child", "grandchild")); err == nil || !strings.Contains(err.Error(), "contains a file") {
 		t.Fatalf("file ancestor error = %v", err)
 	}
 	if _, _, err := CheckDestination("bad\x00path"); err == nil {

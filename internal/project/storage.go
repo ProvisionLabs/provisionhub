@@ -32,6 +32,9 @@ func CheckDestination(destination string) (directory, manifestPath string, err e
 			break
 		}
 		if !errors.Is(statErr, fs.ErrNotExist) {
+			if ancestor := nonDirectoryAncestor(current); ancestor != "" {
+				return "", "", fmt.Errorf("destination path %q contains a file where a directory is required", ancestor)
+			}
 			return "", "", fmt.Errorf("inspect destination %q: %w", current, statErr)
 		}
 		parent := filepath.Dir(current)
@@ -46,6 +49,23 @@ func CheckDestination(destination string) (directory, manifestPath string, err e
 		return "", "", fmt.Errorf("inspect manifest %q: %w", manifestPath, err)
 	}
 	return directory, manifestPath, nil
+}
+
+// On Unix, stat of a child of a regular file reports ENOTDIR rather than
+// fs.ErrNotExist. Walk upward to identify that file for a portable error.
+func nonDirectoryAncestor(path string) string {
+	for current := filepath.Dir(path); ; current = filepath.Dir(current) {
+		info, err := os.Stat(current)
+		if err == nil {
+			if !info.IsDir() {
+				return current
+			}
+			return ""
+		}
+		if parent := filepath.Dir(current); parent == current {
+			return ""
+		}
+	}
 }
 
 // Save atomically publishes a complete manifest without replacing an existing file.
