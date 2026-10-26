@@ -4,7 +4,7 @@
 
 ProvisionHub is planned as a local developer tool for individuals and small teams. It will help users compose, configure, initialize, and provision applications through a guided terminal interface and an automation-friendly CLI. The intended output is a coherent project: selected technologies must be compatible and integrated, rather than emitted as isolated templates.
 
-Typical selections may include a backend (NestJS, Spring Boot, or Go), frontend (Next.js, React, or Angular), database (PostgreSQL, MySQL, or MongoDB), authentication (Keycloak or Auth0), CI/CD (GitHub Actions or GitLab CI), Docker, and infrastructure such as AWS or Kubernetes. These examples are future possibilities, not supported integrations today.
+The current built-in catalog offers NestJS, Spring Boot, or Go backends; Next.js or React frontends; and PostgreSQL or MySQL databases. Frontend and database are optional. These are valid manifest choices, not implemented generators. Angular, MongoDB, authentication, CI/CD, Docker, and infrastructure integrations remain future possibilities.
 
 ## Product principles
 
@@ -23,7 +23,7 @@ Typical selections may include a backend (NestJS, Spring Boot, or Go), frontend 
 5. Execute locally through plugins and external tools, with progress and actionable errors.
 6. Save enough project state to inspect and modify the project later.
 
-This journey is a design target. The TUI currently navigates between explanatory screens, and the CLI provides version and help commands. None of the project workflow steps above is implemented yet.
+The first two steps are partially implemented: the TUI and CLI create a validated [project manifest](project-manifest.md) from technology selections. Opening an existing project in the TUI, resolving plugin capabilities, previewing generation plans, and execution remain future work. The application service can load and validate an existing manifest programmatically.
 
 ## Scope
 

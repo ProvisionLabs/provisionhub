@@ -9,13 +9,16 @@ go.mod
 go.sum
 cmd/provisionhub/main.go
 internal/
-  application/info.go
-  cli/root.go, version.go
-  tui/app.go, navigation.go
+  application/info.go, project.go
+  catalog/catalog.go
+  project/manifest.go, storage.go
+  cli/root.go, version.go, project.go, technologies.go
+  tui/app.go, navigation.go, wizard.go
 .github/workflows/ci.yml
 docs/
   overview.md
   development.md
+  project-manifest.md
   architecture/
     architecture.md
     project-structure.md
@@ -26,21 +29,22 @@ docs/
 LICENSE
 ```
 
-The Go module and entry point are implemented. Each listed Go package also has focused tests. The obsolete server architecture image and UI rebuild guide were removed because they described a required control plane and browser UI.
+Each listed Go package has focused tests. The obsolete server architecture image and UI rebuild guide were removed because they described a required control plane and browser UI.
 
 ## Incremental Go layout
 
-The module, entry point, CLI, TUI, and application metadata use case now exist. Introduce other packages only with their first real implementation:
+The module, entry point, CLI, TUI, catalog, project manifest, and shared configuration use case now exist. Introduce other packages only with their first real implementation:
 
 | Location | Status | Role |
 | --- | --- | --- |
 | `cmd/provisionhub` | Implemented | Executable wiring and process exit behavior |
 | `internal/cli` | Implemented | Command parsing and non-interactive presentation |
 | `internal/tui` | Implemented | Terminal screens, navigation, and rendering |
-| `internal/application` | Metadata only | Shared use cases called by both interfaces |
+| `internal/application` | Implemented | Metadata and shared project configuration use case |
+| `internal/catalog` | Implemented | Built-in technology definitions and category validation |
 | `internal/core` | Planned | Composition, resolution, planning, and execution as those capabilities arrive |
 | `internal/plugins` | Planned | Discovery, contracts, and lifecycle |
-| `internal/project` | Planned | Local project manifest and existing-project state |
+| `internal/project` | Implemented | Versioned manifest serialization, loading, and no-overwrite persistence |
 | `internal/config` | Planned | Tool settings and loading |
 | `internal/registry` | Planned | Optional catalog metadata when distribution is implemented |
 

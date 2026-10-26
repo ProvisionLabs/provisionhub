@@ -29,10 +29,6 @@ type screenText struct {
 }
 
 var secondaryScreens = map[screen]screenText{
-	createProject: {
-		title:       "Create Project",
-		description: "Interactive project creation is planned. No project files are created yet.",
-	},
 	openProject: {
 		title:       "Open Existing Project",
 		description: "Opening and editing local projects is planned. No manifests are read yet.",
@@ -50,17 +46,19 @@ var secondaryScreens = map[screen]screenText{
 // Model contains terminal presentation state; application metadata comes from
 // the shared application layer.
 type Model struct {
-	info   application.AppInfo
-	nav    navigation
-	help   help.Model
-	width  int
-	height int
+	info    application.AppInfo
+	service application.ProjectService
+	nav     navigation
+	wizard  wizard
+	help    help.Model
+	width   int
+	height  int
 }
 
 func NewModel(info application.AppInfo) *Model {
 	h := help.New()
 	h.SetWidth(48)
-	return &Model{info: info, help: h, width: 80, height: 24}
+	return &Model{info: info, service: application.NewProjectService(), help: h, width: 80, height: 24}
 }
 
 func (m *Model) Init() tea.Cmd { return nil }
@@ -70,10 +68,29 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.help.SetWidth(max(1, min(msg.Width-4, 54)-6))
+		m.wizard.resize(msg.Width)
+	case projectCreatedMsg:
+		m.wizard.created(msg)
 	case tea.KeyPressMsg:
+		if msg.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+		if m.nav.current == createProject && m.wizard.step == projectInfoStep {
+			cmd, back := m.wizard.update(msg, m.service)
+			if back {
+				m.nav.back()
+			}
+			return m, cmd
+		}
 		switch {
 		case key.Matches(msg, keys.quit):
 			return m, tea.Quit
+		case m.nav.current == createProject:
+			cmd, back := m.wizard.update(msg, m.service)
+			if back {
+				m.nav.back()
+			}
+			return m, cmd
 		case key.Matches(msg, keys.back):
 			m.nav.back()
 		case key.Matches(msg, keys.up):
@@ -82,6 +99,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.nav.move(1)
 		case key.Matches(msg, keys.selectItem):
 			m.nav.selectItem()
+			if m.nav.current == createProject {
+				var cmd tea.Cmd
+				m.wizard, cmd = newWizard()
+				m.wizard.resize(m.width)
+				return m, cmd
+			}
 		}
 	}
 	return m, nil
@@ -96,37 +119,45 @@ func (m *Model) View() tea.View {
 	}
 
 	frameWidth := min(width-4, 54)
+	if m.nav.current == createProject {
+		frameWidth = min(width-4, 72)
+	}
 	contentWidth := frameWidth - 6
 	muted := lipgloss.NewStyle().Foreground(lipgloss.Color("#94A3B8"))
 	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7DD3FC"))
 	selected := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7DD3FC"))
 
-	lines := []string{
-		lipgloss.PlaceHorizontal(contentWidth, lipgloss.Center, title.Render(strings.ToUpper(m.info.Name))),
-		lipgloss.PlaceHorizontal(contentWidth, lipgloss.Center, muted.Render(m.info.Tagline)),
-		"",
-		strings.Repeat("─", contentWidth),
-		"",
-	}
-	if m.nav.current == home {
-		for i, item := range homeMenu {
-			line := "  " + item.label
-			if i == m.nav.selected {
-				line = selected.Render("› " + item.label)
-			}
-			lines = append(lines, line)
+	var lines []string
+	if m.nav.current == createProject {
+		lines = m.wizard.lines(m.service, contentWidth)
+	} else {
+		lines = []string{
+			lipgloss.PlaceHorizontal(contentWidth, lipgloss.Center, title.Render(strings.ToUpper(m.info.Name))),
+			lipgloss.PlaceHorizontal(contentWidth, lipgloss.Center, muted.Render(m.info.Tagline)),
+			"",
+			strings.Repeat("─", contentWidth),
+			"",
 		}
-	} else {
-		info := secondaryScreens[m.nav.current]
-		lines = append(lines, title.Render(info.title), "", info.description)
+		if m.nav.current == home {
+			for i, item := range homeMenu {
+				line := "  " + item.label
+				if i == m.nav.selected {
+					line = selected.Render("› " + item.label)
+				}
+				lines = append(lines, line)
+			}
+		} else {
+			info := secondaryScreens[m.nav.current]
+			lines = append(lines, title.Render(info.title), "", info.description)
+		}
+		lines = append(lines, "", strings.Repeat("─", contentWidth))
+		if m.nav.current == home {
+			lines = append(lines, m.help.ShortHelpView([]key.Binding{keys.menuHelp, keys.selectItem, keys.quit}))
+		} else {
+			lines = append(lines, m.help.ShortHelpView([]key.Binding{keys.backHelp, keys.quit}))
+		}
+		lines = append(lines, muted.Render(m.info.Version))
 	}
-	lines = append(lines, "", strings.Repeat("─", contentWidth))
-	if m.nav.current == home {
-		lines = append(lines, m.help.ShortHelpView([]key.Binding{keys.menuHelp, keys.selectItem, keys.quit}))
-	} else {
-		lines = append(lines, m.help.ShortHelpView([]key.Binding{keys.backHelp, keys.quit}))
-	}
-	lines = append(lines, muted.Render(m.info.Version))
 
 	frame := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -146,12 +177,17 @@ func (m *Model) View() tea.View {
 }
 
 func (m *Model) compactView(width, height int) string {
-	lines := []string{strings.ToUpper(m.info.Name)}
-	if m.nav.current == home {
-		lines = append(lines, "> "+homeMenu[m.nav.selected].label, "↑↓/jk navigate · enter select · q quit")
+	var lines []string
+	if m.nav.current == createProject {
+		lines = m.wizard.compactLines(m.service)
 	} else {
-		info := secondaryScreens[m.nav.current]
-		lines = append(lines, info.title, info.description, "esc back · q quit")
+		lines = []string{strings.ToUpper(m.info.Name)}
+		if m.nav.current == home {
+			lines = append(lines, "> "+homeMenu[m.nav.selected].label, "↑↓/jk navigate · enter select · q quit")
+		} else {
+			info := secondaryScreens[m.nav.current]
+			lines = append(lines, info.title, info.description, "esc back · q quit")
+		}
 	}
 	if len(lines) > height {
 		lines = lines[:height]

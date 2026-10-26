@@ -2,7 +2,7 @@
 
 ## Status
 
-This describes the **target architecture** and identifies what exists today. The repository currently has a Go CLI, TUI shell, and application metadata use case. Project, core, plugin, config, and registry behavior remain planned. The earlier control-plane, queue, and worker diagram was retired with the local-first decision in [ADR-0003](../adr/0003-local-first-provisioning.md).
+This describes the **target architecture** and identifies what exists today. The repository has a CLI, TUI project configuration wizard, built-in catalog, versioned project manifest, and shared application use case for validation and persistence. Planning, execution, plugin loading, config, and registry behavior remain future work. The earlier control-plane, queue, and worker diagram was retired with the local-first decision in [ADR-0003](../adr/0003-local-first-provisioning.md).
 
 ## Runtime shape
 
@@ -34,7 +34,7 @@ One local process is the default. TUI and CLI are adapters into the same applica
 | Registry (future) | Catalog metadata retrieval and local catalog management | A required network dependency |
 | External boundary | Filesystem, subprocesses, source-control services, cloud APIs | Application-level orchestration |
 
-The CLI, TUI, and application metadata packages now exist; the other rows are conceptual boundaries. Add packages only when real code needs them. See [project structure](project-structure.md).
+CLI, TUI, application, catalog, and project packages now exist. The catalog holds technology definitions independently of presentation. The project package owns YAML serialization and local file operations; the application service validates selections and coordinates saving. Core planning, plugins, config, and registry remain conceptual boundaries. Add packages only when real code needs them. See [project structure](project-structure.md) and the [manifest specification](../project-manifest.md).
 
 ## Planned flow
 
@@ -45,7 +45,7 @@ The CLI, TUI, and application metadata packages now exist; the other rows are co
 5. Require explicit confirmation before destructive operations. For automation, define a deliberate approval mechanism before implementing execution.
 6. Execute operations locally, report progress and errors, and persist enough state for later inspection.
 
-The resolver, planner, and executor do not exist yet. The design keeps their responsibilities distinct so planning can be inspected before side effects. Cancellation, retries, rollback semantics, idempotency, and credential handling need concrete contracts before execution is built; no guarantee is claimed yet.
+The first two steps are partially implemented for built-in catalog entries: create and load a manifest, validate its technology IDs, and save it locally. The resolver, planner, and executor do not exist yet. The design keeps their responsibilities distinct so planning can be inspected before side effects. Cancellation, retries, rollback semantics, idempotency, and credential handling need concrete contracts before execution is built; no guarantee is claimed yet.
 
 ## Deployment and extension
 

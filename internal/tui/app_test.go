@@ -42,7 +42,14 @@ func TestNavigationAndBack(t *testing.T) {
 			press(m, tea.KeyDown, "")
 		}
 		press(m, tea.KeyEnter, "")
-		if m.nav.current != item.screen || !strings.Contains(m.View().Content, secondaryScreens[item.screen].title) {
+		if m.nav.current != item.screen {
+			t.Fatalf("selection %q did not open its screen", item.label)
+		}
+		if item.screen == createProject {
+			if !strings.Contains(m.View().Content, "Project information") {
+				t.Fatal("create project did not open the wizard")
+			}
+		} else if !strings.Contains(m.View().Content, secondaryScreens[item.screen].title) {
 			t.Fatalf("selection %q did not open its screen", item.label)
 		}
 		press(m, tea.KeyEscape, "")
@@ -63,10 +70,8 @@ func TestMenuKeysWrapAndSecondaryIgnoresSelection(t *testing.T) {
 		t.Fatalf("down from last item selected %d", m.nav.selected)
 	}
 	press(m, tea.KeyEnter, "")
-	press(m, tea.KeyDown, "")
-	press(m, tea.KeyEnter, "")
-	if m.nav.current != createProject {
-		t.Fatal("secondary screen should ignore menu keys")
+	if m.nav.current != createProject || m.wizard.step != projectInfoStep {
+		t.Fatal("create project should open at its information step")
 	}
 	press(m, tea.KeyEscape, "")
 	press(m, tea.KeyEscape, "")

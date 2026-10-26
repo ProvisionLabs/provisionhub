@@ -2,7 +2,7 @@
 
 ## Status and purpose
 
-This document defines intended boundaries only. There is no plugin contract, loader, registry, or official plugin in this repository yet. Official plugins are planned for the separate `provisionhub-official-plugins` repository. The ProvisionLabs website marketplace is a future discovery surface, not a runtime requirement.
+This document defines intended plugin boundaries only. A small built-in technology catalog now supplies IDs, names, categories, descriptions, and optional explicit incompatibility metadata for manifest configuration; it is not a plugin loader. There is no plugin contract, loader, registry, or official plugin in this repository yet. Official plugins are planned for the separate `provisionhub-official-plugins` repository. The ProvisionLabs website marketplace is a future discovery surface, not a runtime requirement.
 
 Plugins should add project templates, frameworks, databases, authentication, CI/CD, containerization, infrastructure providers, and other operations without putting provider-specific logic in the core. Independently developed plugins should be possible, subject to a versioned contract and a documented compatibility policy that remain to be designed.
 
