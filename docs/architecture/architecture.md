@@ -1,171 +1,65 @@
-# Architecture — Macro View
+# Architecture
 
-## Purpose
+## Status
 
-This document describes ProvisionHub at system level: boundaries, major components, key decisions, and end-to-end flow. Decision rationale is tracked in ADRs under docs/adr.
+This describes the **target architecture** and identifies what exists today. The repository currently has a Go CLI, TUI shell, and application metadata use case. Project, core, plugin, config, and registry behavior remain planned. The earlier control-plane, queue, and worker diagram was retired with the local-first decision in [ADR-0003](../adr/0003-local-first-provisioning.md).
 
----
+## Runtime shape
 
-## System Context
+```text
+              TUI           non-interactive CLI
+                \             /
+                 application use cases
+                 /       |       \
+          project data  core planning  plugin management
+                             |                |
+                      local execution ---- plugin operations
+                             |                |
+                      files and external tools/providers
+```
 
-ProvisionHub sits between platform users and external providers.
+One local process is the default. TUI and CLI are adapters into the same application use cases. Application services coordinate project state, composition, planning, approval, and execution; they do not depend on terminal rendering or command parsing. The core owns deterministic composition rules and planned operation semantics. The plugin system discovers and invokes integrations under an explicit contract. Provider-specific behavior belongs in plugins or adapters at the external boundary.
 
-- Inputs: service provisioning requests, templates, policy constraints
-- Outputs: repositories, CI pipelines, infrastructure resources, integration bindings
-- External dependencies: source control APIs, cloud providers, artifact systems, identity providers
+## Responsibilities
 
----
+| Boundary | Responsibility | Must not own |
+| --- | --- | --- |
+| TUI | Screens, navigation, input, plan and progress display | Composition rules or provider calls |
+| CLI | Commands, flags, non-interactive input and output | A separate provisioning workflow |
+| Application | Coordinate use cases and project lifecycle; apply approval policy | Terminal widgets or provider details |
+| Core | Resolve capabilities and constraints, form plans, execute predictable operations | Plugin distribution or UI behavior |
+| Plugins | Discovery, metadata, lifecycle, and integration operations | Global workflow policy |
+| Project | Local manifest and existing-project operations | Remote service state |
+| Config | Tool-level settings and loading | Project technology decisions |
+| Registry (future) | Catalog metadata retrieval and local catalog management | A required network dependency |
+| External boundary | Filesystem, subprocesses, source-control services, cloud APIs | Application-level orchestration |
 
-## Container-Level Architecture
+The CLI, TUI, and application metadata packages now exist; the other rows are conceptual boundaries. Add packages only when real code needs them. See [project structure](project-structure.md).
 
-![ProvisionHub Architecture](./architecture.png)
+## Planned flow
 
-Primary containers:
+1. Read a local project manifest or collect new-project intent.
+2. Gather plugin metadata and configuration requirements without executing side effects.
+3. Resolve dependencies, capabilities, and compatibility constraints; report conflicts clearly.
+4. Produce a reviewable operation plan with order, inputs, expected outputs, and risk information.
+5. Require explicit confirmation before destructive operations. For automation, define a deliberate approval mechanism before implementing execution.
+6. Execute operations locally, report progress and errors, and persist enough state for later inspection.
 
-1. UI and/or CLI
+The resolver, planner, and executor do not exist yet. The design keeps their responsibilities distinct so planning can be inspected before side effects. Cancellation, retries, rollback semantics, idempotency, and credential handling need concrete contracts before execution is built; no guarantee is claimed yet.
 
-- Entry points for platform consumers and operators
-- Submits provisioning intents
-- UI is a replaceable reference component and not a runtime dependency of Control Plane or Workers
+## Deployment and extension
 
-2. Control Plane
+No centralized control plane, queue, distributed worker, mandatory gRPC service, or Kubernetes deployment is part of the default runtime. Optional remote or distributed execution can be designed later behind the application/core boundaries without changing the TUI and CLI use cases. Plugin interoperability and distribution formats remain open decisions; [ADR-0005](../adr/0005-plugin-composition.md) supersedes mandatory gRPC from [ADR-0002](../adr/0002-grpc-plugin-contract.md).
 
-- Validates and orchestrates workflows
-- Manages plugin lifecycle
-- Schedules and tracks jobs
-- Exposes REST and gRPC APIs
+## Technology candidates
 
-3. Queue Backbone
+The first implementation milestone adopted all four libraries. Their tradeoffs remain relevant as the interfaces grow.
 
-- Durable, asynchronous handoff between orchestration and execution
-- Enables scaling and fault isolation
+| Candidate | Why it fits | Tradeoff and decision gate |
+| --- | --- | --- |
+| [Bubble Tea](https://github.com/charmbracelet/bubbletea) | Its model/update/view flow drives screen state and terminal events. | The event model is a framework dependency; keep provisioning behavior outside it. |
+| [Bubbles](https://github.com/charmbracelet/bubbles) | Its help component renders context-specific shortcuts. | Add other components only where they reduce code; keep application services independent of component state. |
+| [Lip Gloss](https://github.com/charmbracelet/lipgloss) | It styles and lays out the framed screens. | Test narrow terminal dimensions and limited-color readability. |
+| [Cobra](https://github.com/spf13/cobra) | It parses commands and provides help for the CLI. | Keep command handlers thin and share application use cases with the TUI. |
 
-4. Workers
-
-- Stateless execution units
-- Consume jobs and invoke provider plugins
-- Report status and results
-
-5. Plugin Runtime
-
-- Control Plane plugins for orchestration and policy
-- Worker plugins for provider actions
-
----
-
-## Macro Design Decisions
-
-1. Monorepo in Go for core services
-
-- Improves shared package reuse and consistent build tooling
-- See ADR: docs/adr/0001-go-monorepo.md
-
-2. gRPC contracts for plugin interoperability
-
-- Enables multi-language plugin implementations with stable contracts
-- See ADR: docs/adr/0002-grpc-plugin-contract.md
-
-3. Standard UI in monorepo, fully decoupled
-
-- Provides a default interface without coupling core lifecycle to frontend implementation
-- Can be rebuilt or replaced internally using documented API contracts and flows
-- See guide: docs/architecture/ui-rebuild.md
-
----
-
-## End-to-End Flow
-
-1. Request ingestion
-
-- User triggers a provisioning request through API/CLI/UI
-- Control Plane authenticates and validates the request
-
-2. Planning and orchestration
-
-- Control Plane plugin resolves template and policy
-- Produces an ordered execution plan
-
-3. Job emission
-
-- Plan is decomposed into jobs with provider-specific payloads
-- Jobs are persisted to queue topics/partitions
-
-4. Distributed execution
-
-- Worker claims job and loads appropriate Worker plugin
-- Plugin performs external action (for example, create repository)
-
-5. Result reporting
-
-- Worker reports state transition and result payload
-- Control Plane aggregates outcomes and triggers downstream jobs
-
-6. Completion
-
-- Final workflow status returned to caller and stored for audit
-
----
-
-## Responsibilities and Boundaries
-
-Control Plane is responsible for:
-
-- Intent validation
-- Planning and job scheduling
-- Plugin process management (control-plane scope)
-- Workflow state and API surface
-
-Control Plane is not responsible for:
-
-- Running heavy provider-side operations
-- Long-running execution tasks that belong to workers
-
-Workers are responsible for:
-
-- Executing jobs idempotently
-- Provider API/CLI integrations
-- Secure secret usage during execution
-
-Workers are not responsible for:
-
-- Global orchestration decisions
-- Cross-workflow planning
-
-Reference UI is responsible for:
-
-- Presenting workflows and status to users
-- Consuming Control Plane APIs and contracts
-
-Reference UI is not responsible for:
-
-- Owning orchestration logic
-- Executing provider operations
-
----
-
-## Reliability and Scale Considerations
-
-- Queue decoupling protects Control Plane from execution spikes
-- Worker horizontal scale handles burst provisioning workloads
-- Retry and DLQ policies isolate transient failures
-- Idempotent execution rules prevent duplicate side effects
-
----
-
-## Security Posture (Macro)
-
-- mTLS for service-to-service communication
-- Least-privilege credentials for plugin execution
-- Signed plugin artifacts and version pinning
-- Audit trail for job lifecycle and plugin actions
-
----
-
-## Traceability
-
-Architecture decisions should map to ADRs and implementation docs:
-
-- Overview: docs/overview.md
-- Macro architecture: docs/architecture/architecture.md
-- UI rebuild guide: docs/architecture/ui-rebuild.md
-- ADR index: docs/adr/
+The concrete versions are pinned in `go.mod`. See the [development guide](../development.md) for current commands and shortcuts.

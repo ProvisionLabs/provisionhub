@@ -1,144 +1,32 @@
-# ProvisionHub — Overview
+# ProvisionHub overview
 
-## What is ProvisionHub
+## Purpose and audience
 
-ProvisionHub is a lightweight, extensible platform for provisioning and managing developer systems through a plugin-driven architecture. It separates orchestration from execution, so platform teams can define workflows in the Control Plane while distributed Workers execute heavy operations.
+ProvisionHub is planned as a local developer tool for individuals and small teams. It will help users compose, configure, initialize, and provision applications through a guided terminal interface and an automation-friendly CLI. The intended output is a coherent project: selected technologies must be compatible and integrated, rather than emitted as isolated templates.
 
-The platform is designed to be:
+Typical selections may include a backend (NestJS, Spring Boot, or Go), frontend (Next.js, React, or Angular), database (PostgreSQL, MySQL, or MongoDB), authentication (Keycloak or Auth0), CI/CD (GitHub Actions or GitLab CI), Docker, and infrastructure such as AWS or Kubernetes. These examples are future possibilities, not supported integrations today.
 
-- Plugin-first
-- Language-agnostic (via gRPC contracts)
-- Distributed by default
-- Extensible without modifying the core
-- UI-decoupled (reference UI can be replaced independently)
-- Suitable for internal developer platforms
-- Lightweight compared to monolithic portals
+## Product principles
 
-ProvisionHub standardizes how repositories, services, infrastructure, and integrations are created and managed.
+- **TUI-first:** The terminal interface is the primary guided experience. It should eventually create and open projects, select and configure technologies and providers, browse plugins, preview plans, run workflows, and display progress and errors.
+- **CLI-compatible:** Non-interactive commands should expose the same use cases for scripts and CI/CD. UI state must not contain provisioning rules.
+- **Local-first:** The default workflow runs on the developer's machine without an always-on service or cluster. Remote execution may be offered later as an optional capability.
+- **Plugin-driven:** Independently developed plugins may supply templates, framework and service integrations, infrastructure providers, and operations. Official plugins are planned for the separate `provisionhub-official-plugins` repository.
+- **Composition-aware:** Plugin metadata should eventually declare capabilities, dependencies, compatibility constraints, and configuration requirements so selected technologies can form one valid application.
 
----
+## Planned user journey
 
-## Problem Statement
+1. Create a new project or open an existing project manifest.
+2. Select technologies and enter required configuration using the TUI or CLI.
+3. Resolve compatibility and required capabilities before generating a plan.
+4. Preview ordered operations and request explicit confirmation before destructive actions.
+5. Execute locally through plugins and external tools, with progress and actionable errors.
+6. Save enough project state to inspect and modify the project later.
 
-Organizations typically struggle with:
+This journey is a design target. The TUI currently navigates between explanatory screens, and the CLI provides version and help commands. None of the project workflow steps above is implemented yet.
 
-- Manual service provisioning
-- Inconsistent repository setup
-- Multiple CI/CD patterns
-- Repeated infrastructure boilerplate
-- Lack of standardized templates
-- Hardcoded platform logic
-- Poor extensibility for new providers
+## Scope
 
-Existing solutions often:
+ProvisionHub is not intended to be a central control plane, a CI/CD service, a secrets manager, a Kubernetes replacement, or a permanently running developer portal. It may integrate with external systems when a selected plugin requires them. Local use must not require a database server, message broker, workers, or Kubernetes.
 
-- Are too heavy
-- Require frontend-first plugin systems
-- Are difficult to extend
-- Mix orchestration with execution
-- Do not support distributed workers well
-
-ProvisionHub addresses these issues with a minimal core plus a robust plugin system.
-
----
-
-## Goals
-
-ProvisionHub aims to:
-
-- Provide a plugin-based provisioning platform
-- Separate orchestration from execution
-- Support multiple providers (GitHub, GitLab, cloud vendors, internal systems)
-- Allow distributed execution via workers
-- Enable dynamic plugin installation
-- Support versioned plugins
-- Provide CLI-driven plugin management
-- Keep the core minimal and stable
-- Allow multi-language plugin development
-
----
-
-## Non-Goals
-
-ProvisionHub is not:
-
-- A full CI/CD system
-- A Kubernetes replacement
-- A GitOps controller
-- A full developer portal UI
-- A workflow engine replacement
-- A secrets manager
-- A monolithic platform
-
-These capabilities may exist as plugins, not in the core.
-
-ProvisionHub may include a standard reference UI in the monorepo, but this UI is optional and fully decoupled from core runtime behavior.
-
----
-
-## Core Building Blocks
-
-### Control Plane
-
-Responsible for orchestration, plugin lifecycle management, job scheduling, API exposure, and system state. The Control Plane does not execute heavy provisioning operations.
-
-### Workers
-
-Stateless, horizontally scalable executors that consume jobs from the queue and run provider-specific plugins.
-
-### Plugins
-
-Two plugin classes:
-
-- Control Plane plugins: orchestration logic, auth providers, templates, high-level workflow decisions
-- Worker plugins: provider integrations for Git, deploy, build, and infrastructure execution
-
-### Jobs
-
-A Job is the unit of work sent from Control Plane to Workers. Jobs include type, provider, payload, metadata, and optional secrets.
-
-### Registry
-
-ProvisionHub supports dynamic plugin installation through public and private registries.
-
----
-
-## High-Level Architecture
-
-See [docs/architecture/architecture.md](docs/architecture/architecture.md) for system boundaries, macro decisions, and end-to-end flow.
-
-For internal teams that need to rebuild or replace the UI, see [docs/architecture/ui-rebuild.md](docs/architecture/ui-rebuild.md).
-
----
-
-## Example End-to-End Flow
-
-1. User requests a new service.
-2. Control Plane plugin validates intent and composes a provisioning plan.
-3. Control Plane emits jobs (for example, create repo, setup CI, deploy baseline infra).
-4. Workers consume jobs and execute provider actions via Worker plugins.
-5. Job results are reported back to Control Plane and exposed through APIs.
-
----
-
-## Target Use Cases
-
-- Service scaffolding
-- Repository creation
-- CI/CD bootstrapping
-- Infrastructure provisioning
-- Template-based services
-- Internal developer platforms
-- Multi-provider deployments
-
----
-
-## Architecture Decision Records
-
-Major decisions and trade-offs are documented in [docs/adr/0001-go-monorepo.md](docs/adr/0001-go-monorepo.md) and [docs/adr/0002-grpc-plugin-contract.md](docs/adr/0002-grpc-plugin-contract.md).
-
----
-
-## Summary
-
-ProvisionHub is a plugin-driven provisioning platform that keeps orchestration and execution separate, scales through workers, and evolves safely through explicit architectural decisions.
+The ProvisionLabs website may eventually host a searchable plugin marketplace. Marketplace and registry protocols are deferred. See the [architecture](architecture/architecture.md), [plugin design](architecture/plugins.md), and [ADRs](adr/) for boundaries and decision history.

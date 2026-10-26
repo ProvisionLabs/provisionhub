@@ -32,5 +32,5 @@ List what becomes easier, harder, or mandatory after this decision.
 
 ## References
 
-- docs/overview.md
-- docs/architecture/architecture.md
+- [Product overview](../overview.md)
+- [Architecture](../architecture/architecture.md)

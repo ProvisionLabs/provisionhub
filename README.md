@@ -1,71 +1,49 @@
 # ProvisionHub
 
-> Lightweight, plugin-driven provisioning platform for internal developer platforms
+ProvisionHub is an open-source, TUI-first developer provisioning tool for individual developers and small teams. Its goal is to help developers compose, configure, initialize, and provision applications from frameworks, services, and infrastructure choices that work together.
 
-It separates orchestration from execution so platform teams can define workflows in the Control Plane while distributed Workers perform the heavy work.
+The planned terminal interface will guide project creation, technology selection, configuration, plan review, execution, and work on existing projects. Non-interactive CLI commands will support scripts and CI/CD through the same application services. The core will run locally without a control plane, database server, message broker, distributed workers, Kubernetes cluster, or persistent backend.
 
-## What this repository contains
+Plugins are intended to provide templates, technology integrations, and provisioning operations. Official plugins will live in the separate `provisionhub-official-plugins` repository. A searchable marketplace on the ProvisionLabs website is a future distribution channel; it is not part of this repository today.
 
-This repository is the documentation and architecture home for ProvisionHub.
+## Current status
 
-- The product vision and problem statement
-- The macro architecture and system boundaries
-- The architectural decisions captured as ADRs
-- Supporting docs for jobs, registry, and plugin development
+The repository now has a Go executable. Running `provisionhub` opens a navigable TUI with Home, Create Project, Open Existing Project, Plugin Marketplace, and Settings screens. The four destination screens explain that their features are not implemented. `provisionhub version` and `provisionhub --help` work without an interactive terminal. CLI and TUI read the same application metadata. Unit tests and a cross-platform CI workflow cover this foundation.
 
-## Why ProvisionHub exists
+There is still no project creation, manifest, technology selection, plugin discovery or installation, provisioning engine, registry, template, or settings persistence. The application layer currently provides metadata only.
 
-ProvisionHub is designed to solve common platform problems:
+## Build and run
 
-- Manual service provisioning
-- Inconsistent repository setup
-- Repeated CI/CD boilerplate
-- Hardcoded platform logic
-- Poor extensibility for new providers
+Requires Go 1.26.1 or later. Use an ANSI-compatible terminal for the TUI.
 
-It aims to stay small at the core and move most implementation detail into plugins.
-
-## Core principles
-
-- Plugin-first
-- Distributed by default
-- Provider-agnostic
-- Language-agnostic through gRPC contracts
-- Minimal core, extensible edge
-
-## How it works
-
-```text
-UI / CLI → Control Plane → Queue → Workers → Provider Plugins
+```sh
+go mod download
+go run ./cmd/provisionhub
+go run ./cmd/provisionhub version
+go run ./cmd/provisionhub --help
+go build ./cmd/provisionhub
 ```
 
-The Control Plane orchestrates workflows, the queue decouples execution, and Workers perform provider-specific actions through plugins.
+After `go build`, run `./provisionhub` on Linux/macOS or `.\provisionhub.exe` on Windows. `go install ./cmd/provisionhub` installs to your Go binary directory.
 
-## Start here
+On Home, use Up/Down or `j`/`k` to navigate and Enter to select. Esc returns to the previous screen. `q` or Ctrl+C quits from any screen. The TUI uses a compact layout in small terminals.
 
-1. Read the product overview: [docs/overview.md](docs/overview.md)
-2. Review the macro architecture: [docs/architecture/architecture.md](docs/architecture/architecture.md)
-3. Explore the decision log: [docs/adr](docs/adr)
+For development and testing commands, see the [development guide](docs/development.md).
 
-## Documentation map
+## Direction
 
-- [Overview](docs/overview.md) — product vision, problem statement, goals, and core concepts
-- [Architecture](docs/architecture/architecture.md) — macro view, system boundaries, and end-to-end flow
-- [ADR-0001 — Go monorepo](docs/adr/0001-go-monorepo.md) — read this if you are contributing to the core runtime or shared packages
-- [ADR-0002 — gRPC plugin contract](docs/adr/0002-grpc-plugin-contract.md) — read this if you are changing plugin boundaries or contracts
-- [UI rebuild guide](docs/architecture/ui-rebuild.md) — read this if you need to replace or reimplement the reference UI
+The first implementation milestone established the TUI shell, navigation, a non-interactive CLI entry point, and a shared metadata use case. Later milestones will add interactive project creation, a project manifest, local plugin discovery, technology composition, plan review, and execution. The interfaces will remain separate from provisioning decisions and provider calls.
 
-## Status / where we are
+ProvisionHub aims to solve repeated project setup, incompatible technology choices, and fragmented integration work. For example, a future Spring Boot + PostgreSQL + Docker + GitHub Actions selection should produce one coherent project configuration, rather than four unrelated templates.
 
-Documentation-first.
-System boundaries are being defined before implementation starts.
-No production code yet.
+## Documentation
 
-## Contributing
+- [Product overview](docs/overview.md)
+- [Architecture and boundaries](docs/architecture/architecture.md)
+- [Planned project structure](docs/architecture/project-structure.md)
+- [Plugin architecture](docs/architecture/plugins.md)
+- [Decision records](docs/adr/)
+- [Contributing](CONTRIBUTING.md)
+- [Running and developing](docs/development.md)
 
-This repository is documentation-first.
-
-- Add new architecture docs under [docs/architecture](docs/architecture)
-- Add new ADRs under [docs/adr](docs/adr) using the next available number
-- Use [docs/adr/template.md](docs/adr/template.md) as a starting point for new decisions
-- Keep docs small, specific, and linked from this README when they are entry points
+The original Go monorepo and gRPC decisions remain in [ADR-0001](docs/adr/0001-go-monorepo.md) and [ADR-0002](docs/adr/0002-grpc-plugin-contract.md). [ADR-0003](docs/adr/0003-local-first-provisioning.md), [ADR-0004](docs/adr/0004-tui-and-cli.md), and [ADR-0005](docs/adr/0005-plugin-composition.md) describe the current direction and which older assumptions they supersede.

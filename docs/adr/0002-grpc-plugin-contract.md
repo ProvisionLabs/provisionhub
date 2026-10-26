@@ -1,8 +1,10 @@
 # ADR-0002: gRPC as Plugin Contract Boundary
 
-- Status: Accepted
+- Status: Superseded by [ADR-0005](0005-plugin-composition.md)
 - Date: 2026-04-03
 - Owners: ProvisionHub Core Team
+
+> Historical decision. gRPC is no longer mandatory for local plugins. The original rationale and tradeoffs remain below; ADR-0005 defines the current direction and defers the runtime protocol choice.
 
 ## Context
 

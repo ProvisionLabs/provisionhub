@@ -1,8 +1,10 @@
 # ADR-0001: Go Monorepo for Core Platform
 
-- Status: Accepted
+- Status: Amended by [ADR-0003](0003-local-first-provisioning.md) and [ADR-0004](0004-tui-and-cli.md)
 - Date: 2026-04-03
 - Owners: ProvisionHub Core Team
+
+> Historical decision. Go and a single repository remain the direction, but the Control Plane, Worker, queue, and reference browser UI assumptions below are no longer requirements. See ADR-0003 and ADR-0004. The original context and decision are retained for traceability.
 
 ## Context
 
@@ -74,4 +76,4 @@ Cons:
 - docs/architecture/architecture.md
 - docs/overview.md
 - docs/adr/0002-grpc-plugin-contract.md
-- docs/architecture/ui-rebuild.md
+- docs/adr/0004-tui-and-cli.md (current interface decision; the former UI rebuild guide was retired)
