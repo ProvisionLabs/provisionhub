@@ -68,7 +68,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.help.SetWidth(max(1, min(msg.Width-4, 54)-6))
-		m.wizard.resize(msg.Width)
+		m.wizard.resize(msg.Width, msg.Height)
 	case projectCreatedMsg:
 		m.wizard.created(msg)
 	case tea.KeyPressMsg:
@@ -102,7 +102,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.nav.current == createProject {
 				var cmd tea.Cmd
 				m.wizard, cmd = newWizard()
-				m.wizard.resize(m.width)
+				m.wizard.resize(m.width, m.height)
 				return m, cmd
 			}
 		}
@@ -112,6 +112,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) View() tea.View {
 	width, height := max(1, m.width), max(1, m.height)
+	if m.nav.current == createProject && m.wizard.preview {
+		view := tea.NewView(m.wizard.planView(width, height))
+		view.AltScreen = true
+		return view
+	}
 	if width < 40 || height < 17 {
 		view := tea.NewView(m.compactView(width, height))
 		view.AltScreen = true

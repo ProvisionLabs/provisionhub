@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/ProvisionLabs/provisionhub/internal/application"
 	"github.com/ProvisionLabs/provisionhub/internal/catalog"
+	"github.com/ProvisionLabs/provisionhub/internal/planning"
 )
 
 type wizardStep uint8
@@ -36,6 +37,11 @@ type wizard struct {
 	err         string
 	saving      bool
 	result      application.CreateProjectResult
+	preview     bool
+	plan        planning.Plan
+	planOffset  int
+	width       int
+	height      int
 }
 
 func newWizard() (wizard, tea.Cmd) {
@@ -48,12 +54,16 @@ func newWizard() (wizard, tea.Cmd) {
 	destination.Prompt = ""
 	destination.Placeholder = "./my-application"
 	destination.SetWidth(38)
-	w := wizard{name: name, destination: destination}
+	w := wizard{name: name, destination: destination, width: 80, height: 24}
 	cmd := w.name.Focus()
 	return w, cmd
 }
 
-func (w *wizard) resize(width int) {
+func (w *wizard) resize(width, height int) {
+	w.width, w.height = max(1, width), max(1, height)
+	if w.preview {
+		w.clampPlanOffset()
+	}
 	frameWidth := min(width-4, 72)
 	inputWidth := max(4, min(frameWidth-24, 48))
 	w.name.SetWidth(inputWidth)
@@ -122,6 +132,18 @@ func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService)
 	}
 	w.err = ""
 	key := msg.String()
+	if w.preview {
+		switch key {
+		case "esc", "enter", "p":
+			w.preview = false
+		case "down", "j":
+			w.planOffset++
+		case "up", "k":
+			w.planOffset--
+		}
+		w.clampPlanOffset()
+		return nil, false
+	}
 	switch w.step {
 	case projectInfoStep:
 		switch key {
@@ -179,6 +201,18 @@ func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService)
 		switch key {
 		case "esc":
 			w.step = databaseStep
+		case "p":
+			manifest, _, err := service.ValidateInput(w.input(service))
+			if err != nil {
+				w.err = err.Error()
+				return nil, false
+			}
+			w.plan, err = service.PlanManifest(manifest)
+			if err != nil {
+				w.err = err.Error()
+			}
+			w.preview = true
+			w.planOffset = 0
 		case "enter":
 			input := w.input(service)
 			if _, _, err := service.ValidateInput(input); err != nil {
@@ -305,7 +339,7 @@ func (w *wizard) footer() string {
 	case backendStep, frontendStep, databaseStep:
 		return "↑↓/jk choose · enter select · esc back · q quit"
 	case reviewStep:
-		return "enter create · esc back · q quit"
+		return "p plan · enter create · esc back · q quit"
 	default:
 		return "enter/esc home · q quit"
 	}

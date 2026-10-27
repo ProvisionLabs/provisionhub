@@ -2,7 +2,7 @@
 
 ## Status
 
-This describes the **target architecture** and identifies what exists today. The repository has a CLI, TUI project configuration wizard, built-in catalog, versioned project manifest, and shared application use case for validation and persistence. Planning, execution, plugin loading, config, and registry behavior remain future work. The earlier control-plane, queue, and worker diagram was retired with the local-first decision in [ADR-0003](../adr/0003-local-first-provisioning.md).
+This describes the **target architecture** and identifies what exists today. The repository has a CLI, TUI project configuration wizard, built-in catalog, versioned project manifest, shared validation/persistence services, and a deterministic conceptual Generation Planning Engine with CLI/TUI previews. Execution, plugin loading, config, and registry behavior remain future work. The earlier control-plane, queue, and worker diagram was retired with the local-first decision in [ADR-0003](../adr/0003-local-first-provisioning.md).
 
 ## Runtime shape
 
@@ -27,6 +27,7 @@ One local process is the default. TUI and CLI are adapters into the same applica
 | TUI | Screens, navigation, input, plan and progress display | Composition rules or provider calls |
 | CLI | Commands, flags, non-interactive input and output | A separate provisioning workflow |
 | Application | Coordinate use cases and project lifecycle; apply approval policy | Terminal widgets or provider details |
+| Planning (implemented) | Resolve current catalog selections, describe unavailable capabilities, validate/order operation dependencies, return structured diagnostics | Filesystem/network effects, provider execution, terminal rendering |
 | Core | Resolve capabilities and constraints, form plans, execute predictable operations | Plugin distribution or UI behavior |
 | Plugins | Discovery, metadata, lifecycle, and integration operations | Global workflow policy |
 | Project | Local manifest and existing-project operations | Remote service state |
@@ -34,7 +35,7 @@ One local process is the default. TUI and CLI are adapters into the same applica
 | Registry (future) | Catalog metadata retrieval and local catalog management | A required network dependency |
 | External boundary | Filesystem, subprocesses, source-control services, cloud APIs | Application-level orchestration |
 
-CLI, TUI, application, catalog, and project packages now exist. The catalog holds technology definitions independently of presentation. The project package owns YAML serialization and local file operations; the application service validates selections and coordinates saving. Core planning, plugins, config, and registry remain conceptual boundaries. Add packages only when real code needs them. See [project structure](project-structure.md) and the [manifest specification](../project-manifest.md).
+CLI, TUI, application, catalog, project, and planning packages now exist. The catalog holds technology definitions independently of presentation. The project package owns YAML serialization and local file operations; the application service coordinates saving and read-only planning. `internal/planning` reuses manifest/catalog validators, resolves selected entries, constructs conceptual operations, and applies deterministic dependency ordering without I/O. Broader capability resolution, execution, plugins, config, and registry remain conceptual boundaries. Add packages only when real code needs them. See [project structure](project-structure.md), the [manifest specification](../project-manifest.md), and [generation planning](../generation-planning.md).
 
 ## Planned flow
 
@@ -45,7 +46,9 @@ CLI, TUI, application, catalog, and project packages now exist. The catalog hold
 5. Require explicit confirmation before destructive operations. For automation, define a deliberate approval mechanism before implementing execution.
 6. Execute operations locally, report progress and errors, and persist enough state for later inspection.
 
-The first two steps are partially implemented for built-in catalog entries: create and load a manifest, validate its technology IDs, and save it locally. The resolver, planner, and executor do not exist yet. The design keeps their responsibilities distinct so planning can be inspected before side effects. Cancellation, retries, rollback semantics, idempotency, and credential handling need concrete contracts before execution is built; no guarantee is claimed yet.
+Built-in configuration, manifest loading, ID/category/explicit-conflict validation, and conceptual planning are implemented. `ProjectService.PlanProject` loads a file and delegates to `PlanManifest`; the TUI uses `PlanManifest` for unsaved Review selections. All capabilities are marked unavailable, target paths remain unknown, and every plan has `executable: false`. A valid graph has `status: planned` even with missing-provider warnings. Operations use stable IDs and lexical dependency-first ordering; graph defects produce structured errors, not a partial schedule. The broader plugin capability resolver and executor do not exist yet.
+
+The TUI's optional preview is before saving: `p` from Review opens the plan, Enter/Esc returns without writes, and Enter on Review still saves only the manifest. This keeps configuration persistence separate from plan construction and future application. The existing ADRs already establish these boundaries; no plugin/runtime protocol decision is introduced. Cancellation, retries, rollback semantics, idempotency, risk/approval contracts, and credential handling still need design before execution is built; no guarantee is claimed yet.
 
 ## Deployment and extension
 

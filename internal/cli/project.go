@@ -34,6 +34,6 @@ func newProjectCommand() *cobra.Command {
 	for _, flag := range []string{"name", "path", "backend"} {
 		_ = initCommand.MarkFlagRequired(flag)
 	}
-	projectCommand.AddCommand(initCommand)
+	projectCommand.AddCommand(initCommand, newPlanCommand())
 	return projectCommand
 }

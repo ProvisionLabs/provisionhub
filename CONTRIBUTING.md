@@ -1,6 +1,6 @@
 # Contributing to ProvisionHub
 
-ProvisionHub has an initial Go CLI and navigable TUI shell. Provisioning and plugin features are not implemented yet. Start with the [overview](docs/overview.md), [architecture](docs/architecture/architecture.md), [plugin design](docs/architecture/plugins.md), [ADRs](docs/adr/), and [development guide](docs/development.md).
+ProvisionHub has CLI/TUI project configuration, a built-in catalog, versioned manifests, and read-only generation-plan previews. Source generation, execution, and plugin features are not implemented yet. Start with the [agent instructions](AGENTS.md), [development context](docs/development-context.md), [overview](docs/overview.md), [architecture](docs/architecture/architecture.md), [generation planning](docs/generation-planning.md), [plugin design](docs/architecture/plugins.md), [ADRs](docs/adr/), and [development guide](docs/development.md).
 
 ## Documentation changes
 

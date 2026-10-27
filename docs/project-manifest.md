@@ -49,4 +49,10 @@ Do not put credentials or secrets in the manifest. No credential fields exist in
 
 `project init` and the TUI create the destination directory if needed, write a complete temporary file there, and publish it without replacing an existing `provisionhub.yaml`. A conflict or filesystem error is reported to the caller. Existing manifests can be parsed and validated by the Go application service; the **Open Existing Project** TUI screen remains a placeholder.
 
+## Read-only planning
+
+`provisionhub project plan --file <manifest> [--output json]` reads this same schema without changing the file or inspecting/creating a generation destination. The TUI can preview unsaved Review selections through the same application planning service. Planning reuses structural, ID/category, and explicit compatibility validation; it does not relax manifest rules or require a schema change.
+
+A valid manifest can produce a `planned` conceptual plan while every operation remains `unavailable` and `executable` is `false`. There are no generators or integration providers yet. Unknown IDs, wrong categories, explicit conflicts, and invalid manifests produce error diagnostics rather than supported operations. A successfully constructed unsupported plan exits `0`; input/loading/validation/planning/output failures exit `1`. See [generation planning](generation-planning.md) for the domain and JSON fields, diagnostic codes, and TUI save policy.
+
 See the [development guide](development.md) for commands and the [architecture](architecture/architecture.md) for package boundaries.
