@@ -84,11 +84,16 @@ func finalizePlan(plan Plan) Plan {
 	operations, diagnostics := orderOperations(plan.Operations)
 	plan.Operations = operations
 	plan.Diagnostics = append(plan.Diagnostics, diagnostics...)
-	// No execution engine exists, even if every conceptual operation is well formed.
-	plan.Executable = false
+	plan.Executable = plan.Status == StatusPlanned && len(plan.Operations) > 0
+	for _, operation := range plan.Operations {
+		if operation.Status != OperationSupported {
+			plan.Executable = false
+		}
+	}
 	for _, diagnostic := range plan.Diagnostics {
 		if diagnostic.Severity == SeverityError {
 			plan.Status = StatusInvalid
+			plan.Executable = false
 		}
 	}
 	slices.SortFunc(plan.Diagnostics, func(a, b Diagnostic) int {

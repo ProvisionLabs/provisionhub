@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/ProvisionLabs/provisionhub/internal/catalog"
+	"github.com/ProvisionLabs/provisionhub/internal/project"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -158,10 +159,19 @@ func parse(data []byte) (Manifest, error) {
 		if file.Type != "template" && file.Type != "copy" {
 			return m, fmt.Errorf("unsupported file type %q", file.Type)
 		}
-		if paths[file.Destination] {
+		if file.Destination == project.ManifestName {
+			return m, fmt.Errorf("destination %q is reserved for the project manifest", file.Destination)
+		}
+		key := strings.ToLower(file.Destination)
+		for existing := range paths {
+			if existing == key || strings.HasPrefix(existing, key+"/") || strings.HasPrefix(key, existing+"/") {
+				return m, fmt.Errorf("duplicate or overlapping output path %q", file.Destination)
+			}
+		}
+		if paths[key] {
 			return m, fmt.Errorf("duplicate output path %q", file.Destination)
 		}
-		paths[file.Destination] = true
+		paths[key] = true
 	}
 	slices.SortFunc(m.Files, func(a, b File) int { return strings.Compare(a.Destination, b.Destination) })
 	return m, nil
@@ -193,8 +203,11 @@ func validVersion(s string) bool {
 
 // Paths use slash separators on every platform. Reject all ambiguous forms.
 func validatePath(p string) error {
-	if p == "" || path.IsAbs(p) || strings.ContainsAny(p, "\\:\x00") || strings.HasPrefix(p, "//") {
+	if p == "" || path.IsAbs(p) || strings.ContainsAny(p, "\\:\x00") || strings.HasPrefix(p, "//") || !fs.ValidPath(p) {
 		return errors.New("path must be relative and use slash separators")
+	}
+	if _, err := filepath.Localize(p); err != nil {
+		return fmt.Errorf("path is not portable: %w", err)
 	}
 	if path.Clean(p) != p {
 		return errors.New("path is not clean")
@@ -230,7 +243,12 @@ func readLocalFile(folder, name string) ([]byte, error) {
 			return nil, errors.New("template path contains a non-directory")
 		}
 	}
-	return os.ReadFile(current)
+	root, err := os.OpenRoot(folder)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	return root.ReadFile(name)
 }
 
 func validateVariables(content []byte) error {

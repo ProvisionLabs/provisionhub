@@ -16,11 +16,15 @@ const (
 	GenerateBackend   OperationType = "generate_backend"
 	GenerateFrontend  OperationType = "generate_frontend"
 	IntegrateDatabase OperationType = "integrate_database"
+	GenerateFile      OperationType = "generate_file"
 )
 
 type OperationStatus string
 
-const OperationUnavailable OperationStatus = "unavailable"
+const (
+	OperationUnavailable OperationStatus = "unavailable"
+	OperationSupported   OperationStatus = "supported"
+)
 
 type Severity string
 
@@ -44,7 +48,6 @@ const (
 )
 
 // Plan separates successful construction from execution availability.
-// Executable is always false until an execution engine and providers exist.
 // Collection fields are emitted as JSON arrays, including when empty.
 type Plan struct {
 	ProjectName     string       `json:"projectName"`
@@ -67,6 +70,10 @@ type Operation struct {
 	Description  string          `json:"description"`
 	Type         OperationType   `json:"type"`
 	Technology   string          `json:"technology,omitempty"`
+	PluginID     string          `json:"pluginId,omitempty"`
+	Source       string          `json:"source,omitempty"`
+	SourceType   string          `json:"sourceType,omitempty"`
+	SourceDigest string          `json:"sourceDigest,omitempty"`
 	TargetPaths  []string        `json:"targetPaths"`
 	Dependencies []string        `json:"dependencies"`
 	Status       OperationStatus `json:"status"`

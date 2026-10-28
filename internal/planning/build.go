@@ -1,14 +1,22 @@
 package planning
 
 import (
+	"encoding/hex"
 	"fmt"
 
 	"github.com/ProvisionLabs/provisionhub/internal/catalog"
+	"github.com/ProvisionLabs/provisionhub/internal/plugins"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
 )
 
 // Build constructs a conceptual plan. Catalog membership does not imply a generator exists.
 func Build(manifest project.Manifest, technologies catalog.Catalog) Plan {
+	return BuildWithPlugins(manifest, technologies, plugins.Set{})
+}
+
+// BuildWithPlugins adds concrete file operations for locally loaded generators.
+// Plugin files have already been read and validated; this function has no I/O.
+func BuildWithPlugins(manifest project.Manifest, technologies catalog.Catalog, loaded plugins.Set) Plan {
 	plan := Plan{
 		ProjectName: manifest.Metadata.Name, ManifestVersion: manifest.APIVersion,
 		Technologies: []Technology{}, Operations: []Operation{}, Diagnostics: []Diagnostic{}, Status: StatusInvalid,
@@ -67,12 +75,27 @@ func Build(manifest project.Manifest, technologies catalog.Catalog) Plan {
 			operation.Dependencies = []string{"backend:" + manifest.Spec.Backend.Technology}
 			message = fmt.Sprintf("No database integration provider is registered for %s.", technology.Name)
 		}
+		if plugin, ok := loaded.ForTechnology(technology.ID); ok && technology.Category == catalog.Backend {
+			operation.Status = OperationSupported
+			operation.PluginID = plugin.ID
+			for _, file := range plugin.Files {
+				operation.TargetPaths = append(operation.TargetPaths, file.Destination)
+				plan.Operations = append(plan.Operations, Operation{
+					ID:          "file:" + plugin.ID + ":" + file.Destination,
+					Description: "Create " + file.Destination,
+					Type:        GenerateFile, Technology: technology.ID, PluginID: plugin.ID,
+					Source: file.Source, SourceType: file.Type,
+					SourceDigest: hex.EncodeToString(file.Digest[:]),
+					TargetPaths:  []string{file.Destination}, Dependencies: []string{operation.ID}, Status: OperationSupported,
+				})
+			}
+		} else {
+			plan.Diagnostics = append(plan.Diagnostics, Diagnostic{
+				Severity: SeverityWarning, Code: MissingOperationProvider,
+				Message: message, OperationID: operation.ID, Technology: technology.ID,
+			})
+		}
 		plan.Operations = append(plan.Operations, operation)
-		plan.Diagnostics = append(plan.Diagnostics, Diagnostic{
-			Severity: SeverityWarning, Code: MissingOperationProvider,
-			Message:     message,
-			OperationID: operation.ID, Technology: technology.ID,
-		})
 	}
 	return finalizePlan(plan)
 }
