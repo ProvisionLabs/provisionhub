@@ -43,6 +43,7 @@ const (
 	IncompatibleTechnologies DiagnosticCode = "incompatible_technologies"
 	MissingOperationProvider DiagnosticCode = "missing_operation_provider"
 	InvalidOperation         DiagnosticCode = "invalid_operation"
+	InvalidPlugin            DiagnosticCode = "invalid_plugin"
 	InvalidDependency        DiagnosticCode = "invalid_dependency"
 	DependencyCycle          DiagnosticCode = "dependency_cycle"
 )
@@ -71,6 +72,7 @@ type Operation struct {
 	Type         OperationType   `json:"type"`
 	Technology   string          `json:"technology,omitempty"`
 	PluginID     string          `json:"pluginId,omitempty"`
+	PluginDigest string          `json:"pluginDigest,omitempty"`
 	Source       string          `json:"source,omitempty"`
 	SourceType   string          `json:"sourceType,omitempty"`
 	SourceDigest string          `json:"sourceDigest,omitempty"`

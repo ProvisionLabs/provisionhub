@@ -53,6 +53,15 @@ files:
 	if _, err := service.ApplyProject(file, plan); err == nil || !strings.Contains(err.Error(), "changed") {
 		t.Fatalf("stale apply: %v", err)
 	}
+	if err := os.WriteFile(template, []byte(`{"name":"{{projectName}}"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(folder, "plugin.yaml"), []byte(strings.Replace(definition, "version: 1.0.0", "version: 1.0.1", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ApplyProject(file, plan); err == nil || !strings.Contains(err.Error(), "changed") {
+		t.Fatalf("stale plugin manifest: %v", err)
+	}
 	if _, err := os.Stat(filepath.Join(filepath.Dir(file), "package.json")); !os.IsNotExist(err) {
 		t.Fatal("stale apply wrote output")
 	}

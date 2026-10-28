@@ -86,6 +86,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case projectAppliedMsg:
 		m.wizard.applied(msg)
 	case tea.KeyPressMsg:
+		if m.nav.current == createProject && m.wizard.applying {
+			return m, nil
+		}
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}

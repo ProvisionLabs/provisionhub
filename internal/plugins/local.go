@@ -39,6 +39,7 @@ type Manifest struct {
 	Description  string           `yaml:"description"`
 	Capability   string           `yaml:"capability"`
 	Files        []File           `yaml:"files"`
+	Digest       [32]byte         `yaml:"-"`
 }
 
 type Set struct{ byTechnology map[string]Manifest }
@@ -90,6 +91,7 @@ func LoadDirectory(root string, technologies catalog.Catalog) (Set, error) {
 		if err != nil {
 			return Set{}, fmt.Errorf("plugin %q: %w", manifestPath, err)
 		}
+		m.Digest = sha256.Sum256(data)
 		if ids[m.ID] {
 			return Set{}, fmt.Errorf("duplicate plugin ID %q", m.ID)
 		}
@@ -159,7 +161,7 @@ func parse(data []byte) (Manifest, error) {
 		if file.Type != "template" && file.Type != "copy" {
 			return m, fmt.Errorf("unsupported file type %q", file.Type)
 		}
-		if file.Destination == project.ManifestName {
+		if strings.EqualFold(file.Destination, project.ManifestName) {
 			return m, fmt.Errorf("destination %q is reserved for the project manifest", file.Destination)
 		}
 		key := strings.ToLower(file.Destination)

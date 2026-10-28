@@ -78,13 +78,15 @@ func BuildWithPlugins(manifest project.Manifest, technologies catalog.Catalog, l
 		if plugin, ok := loaded.ForTechnology(technology.ID); ok && technology.Category == catalog.Backend {
 			operation.Status = OperationSupported
 			operation.PluginID = plugin.ID
+			operation.PluginDigest = hex.EncodeToString(plugin.Digest[:])
 			for _, file := range plugin.Files {
 				operation.TargetPaths = append(operation.TargetPaths, file.Destination)
 				plan.Operations = append(plan.Operations, Operation{
 					ID:          "file:" + plugin.ID + ":" + file.Destination,
 					Description: "Create " + file.Destination,
 					Type:        GenerateFile, Technology: technology.ID, PluginID: plugin.ID,
-					Source: file.Source, SourceType: file.Type,
+					PluginDigest: hex.EncodeToString(plugin.Digest[:]),
+					Source:       file.Source, SourceType: file.Type,
 					SourceDigest: hex.EncodeToString(file.Digest[:]),
 					TargetPaths:  []string{file.Destination}, Dependencies: []string{operation.ID}, Status: OperationSupported,
 				})

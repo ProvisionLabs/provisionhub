@@ -32,7 +32,11 @@ func (s ProjectService) PlanProject(path string) (planning.Plan, error) {
 
 // PlanManifest shares pure planning between saved projects and unsaved TUI input.
 func (s ProjectService) PlanManifest(manifest project.Manifest) (planning.Plan, error) {
-	plan := planning.BuildWithPlugins(manifest, s.catalog, s.plugins)
+	loaded, err := plugins.LoadDirectory(s.pluginDirectory, s.catalog)
+	if err != nil {
+		return planning.Plan{Status: planning.StatusInvalid, Technologies: []planning.Technology{}, Operations: []planning.Operation{}, Diagnostics: []planning.Diagnostic{{Severity: planning.SeverityError, Code: planning.InvalidPlugin, Message: err.Error()}}}, err
+	}
+	plan := planning.BuildWithPlugins(manifest, s.catalog, loaded)
 	for _, diagnostic := range plan.Diagnostics {
 		if diagnostic.Severity == planning.SeverityError {
 			return plan, fmt.Errorf("cannot construct generation plan: %s", diagnostic.Message)

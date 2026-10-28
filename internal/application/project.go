@@ -23,7 +23,6 @@ type CreateProjectResult struct {
 
 type ProjectService struct {
 	catalog         catalog.Catalog
-	plugins         plugins.Set
 	pluginDirectory string
 }
 
@@ -33,11 +32,10 @@ func NewProjectService() ProjectService {
 
 func NewProjectServiceWithPlugins(directory string) (ProjectService, error) {
 	s := NewProjectService()
-	loaded, err := plugins.LoadDirectory(directory, s.catalog)
+	_, err := plugins.LoadDirectory(directory, s.catalog)
 	if err != nil {
 		return ProjectService{}, err
 	}
-	s.plugins = loaded
 	s.pluginDirectory = directory
 	return s, nil
 }
