@@ -13,8 +13,10 @@ internal/
   application/info.go, project.go, planning.go
   catalog/catalog.go
   planning/plan.go, build.go, dependencies.go
+  plugins/local.go
+  execution/apply.go
   project/manifest.go, storage.go
-  cli/root.go, version.go, project.go, technologies.go, plan.go
+  cli/root.go, version.go, project.go, technologies.go, plan.go, apply.go
   tui/app.go, navigation.go, wizard.go, plan.go
 .github/workflows/ci.yml
 docs/
@@ -28,7 +30,7 @@ docs/
     project-structure.md
     plugins.md
   adr/
-    0001-go-monorepo.md ... 0005-plugin-composition.md
+    0001-go-monorepo.md ... 0006-declarative-local-generation.md
     template.md
 LICENSE
 ```
@@ -37,7 +39,7 @@ Each listed Go package has focused tests. The obsolete server architecture image
 
 ## Incremental Go layout
 
-The module, entry point, CLI, TUI, catalog, project manifest, shared configuration use case, and conceptual planning engine now exist. Introduce other packages only with their first real implementation:
+The module, entry point, CLI, TUI, catalog, project manifest, shared configuration use case, planning engine, local plugin loader, and file executor now exist. Introduce other packages only with their first real implementation:
 
 | Location | Status | Role |
 | --- | --- | --- |
@@ -46,9 +48,10 @@ The module, entry point, CLI, TUI, catalog, project manifest, shared configurati
 | `internal/tui` | Implemented | Terminal screens, navigation, and rendering |
 | `internal/application` | Implemented | Metadata, shared project configuration, and file/in-memory planning use cases |
 | `internal/catalog` | Implemented | Built-in technology definitions and category validation |
-| `internal/planning` | Implemented | Pure conceptual plans, catalog resolution, operation graph ordering, and diagnostics |
-| `internal/core` | Planned | Broader capability composition/resolution and execution, only if real code needs a separate boundary |
-| `internal/plugins` | Planned | Discovery, contracts, and lifecycle |
+| `internal/planning` | Implemented | Pure conceptual/concrete plans, catalog resolution, operation graph ordering, and diagnostics |
+| `internal/core` | Planned | Broader capability composition/resolution, only if real code needs a separate boundary |
+| `internal/plugins` | Implemented narrowly | Local declarative discovery, manifest/path/template validation; no runtime or installation |
+| `internal/execution` | Implemented narrowly | Reviewed local file generation with no-overwrite publication |
 | `internal/project` | Implemented | Versioned manifest serialization, loading, and no-overwrite persistence |
 | `internal/config` | Planned | Tool settings and loading |
 | `internal/registry` | Planned | Optional catalog metadata when distribution is implemented |

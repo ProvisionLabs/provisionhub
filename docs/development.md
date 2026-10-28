@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Go 1.26.1 or later, as declared in `go.mod`.
-- An ANSI-compatible terminal for the interactive TUI. `version`, `--help`, `project init`, `project plan`, and `technologies list` do not require a terminal.
+- An ANSI-compatible terminal for the interactive TUI. `version`, `--help`, `project init`, `project plan`, and `technologies list` do not require a terminal. `project apply` runs non-interactively with `--yes`.
 
 ## Build and run
 
@@ -18,6 +18,8 @@ go run ./cmd/provisionhub technologies list
 go run ./cmd/provisionhub project init --name my-app --path ./my-app --backend go
 go run ./cmd/provisionhub project plan --file ./my-app/provisionhub.yaml
 go run ./cmd/provisionhub project plan --file ./my-app/provisionhub.yaml --output json
+go run ./cmd/provisionhub project plan --file ./my-app/provisionhub.yaml --plugins ./path/to/plugins
+go run ./cmd/provisionhub project apply --file ./my-app/provisionhub.yaml --plugins ./path/to/plugins --yes
 go build ./cmd/provisionhub
 ```
 
@@ -32,7 +34,10 @@ The home screen lists Create Project, Open Existing Project, Plugin Marketplace,
 | Up/Down or `k`/`j` | Move through Home and technology choices |
 | Tab or Up/Down | Move between name and destination fields |
 | Enter | Select or advance; create the manifest on Review; return to Review from plan preview without saving |
-| `p` on Review | Open plan preview; `p` in preview also returns to Review |
+| `p` on Review | Open unsaved configuration preview; `p` in preview returns to Review |
+| `p` on saved result | Preview the saved project's current plan |
+| `g` in executable saved-project preview | Open generation confirmation after read-only preflight |
+| `y` / `n` or Esc in confirmation | Apply the plan / cancel without writing |
 | Up/Down or `k`/`j` in preview | Scroll through operations and diagnostics |
 | Esc | Return to the previous step or Home |
 | Ctrl+C | Quit from any screen |
@@ -42,9 +47,9 @@ The TUI switches to a compact layout in small terminals and uses the alternate s
 
 ## Generation planning
 
-`project plan --file <manifest>` reads and validates an existing manifest, resolves catalog selections, and renders a conceptual generation plan. `--output json` returns the structured plan for automation; `text` is the default. Neither form writes project files, creates destinations, or executes operations. The TUI uses the same application-level planning API for unsaved Review selections. Preview is optional and before saving so the existing explicit Enter-to-save action is unchanged.
+`project plan --file <manifest>` reads and validates an existing manifest, resolves catalog selections and optional local plugins, and renders a conceptual or concrete generation plan. `--output json` returns the structured plan for automation; `text` is the default. Neither form writes project files, creates destinations, or executes operations. The TUI uses the same application-level planning API for unsaved Review selections. Set `PROVISIONHUB_PLUGINS` to the plugin directory before launching the TUI.
 
-Successful plan construction returns `status: planned` and exit code `0`, even though every current operation is `unavailable` and `executable` is `false`. Invalid arguments, unreadable/invalid manifests, unknown/conflicting selections, graph errors, and output failures return exit code `1`. Loading/validation failures in JSON mode include an `invalid` plan with diagnostics on stdout; the executable prints its error on stderr. Argument/format failures may happen before JSON exists. Check exit codes with the built executable rather than the `go run` wrapper.
+Successful plan construction returns `status: planned` and exit code `0`, even when a missing generator makes the plan non-executable. A matching local plugin contributes concrete supported file operations; every selected capability must be supported for `executable: true`. Invalid arguments, unreadable/invalid manifests, unknown/conflicting selections, graph errors, and output failures return exit code `1`. Loading/validation failures in JSON mode include an `invalid` plan with diagnostics on stdout; the executable prints its error on stderr. Argument/plugin-directory errors may happen before JSON exists. Check exit codes with the built executable rather than the `go run` wrapper.
 
 See the [planning specification](generation-planning.md) for domain fields, deterministic ordering, diagnostic codes, dependencies, and limitations. Planning tests and direct TUI-model interaction tests require no network or external generators.
 
@@ -59,4 +64,4 @@ go build ./cmd/provisionhub
 
 CI checks formatting, vet, tests, and build on Windows, Linux, and macOS. Tests drive the Bubble Tea model directly, so they do not require an interactive terminal.
 
-The application layer now validates and saves project manifests through a built-in technology catalog. See the [manifest specification](project-manifest.md) for the schema, IDs, and safety rules. Application source generation, plugin discovery, marketplace access, provisioning, settings persistence, and remote execution are future work. See the [architecture](architecture/architecture.md) and [ADRs](adr/) for the intended boundaries.
+The application layer validates and saves project manifests through the built-in catalog, loads local declarative plugins, and coordinates reviewed file generation. See the [manifest specification](project-manifest.md), [plugin contract](architecture/plugins.md), and [generation planning/execution guide](generation-planning.md). The official NestJS plugin repository was unavailable during this work; marketplace access, infrastructure provisioning, settings persistence, and remote execution remain future work.

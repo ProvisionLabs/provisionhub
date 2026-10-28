@@ -2,15 +2,15 @@
 
 ProvisionHub is an open-source, TUI-first developer provisioning tool for individual developers and small teams. Its goal is to help developers compose, configure, initialize, and provision applications from frameworks, services, and infrastructure choices that work together.
 
-The terminal interface guides project configuration, manifest creation, and conceptual generation-plan review. Future milestones will add source generation, execution, and work on existing projects. Non-interactive CLI commands use the same application service as the TUI. The core runs locally without a control plane, database server, message broker, distributed workers, Kubernetes cluster, or persistent backend.
+The terminal interface guides project configuration, manifest creation, and generation-plan review. Local declarative plugins can contribute concrete file operations; execution requires a separate approval. Non-interactive CLI commands use the same application service as the TUI. The core runs locally without a control plane, database server, message broker, distributed workers, Kubernetes cluster, or persistent backend.
 
-Plugins are intended to provide templates, technology integrations, and provisioning operations. Official plugins will live in the separate `provisionhub-official-plugins` repository. A searchable marketplace on the ProvisionLabs website is a future distribution channel; it is not part of this repository today.
+Plugins are intended to provide templates, technology integrations, and provisioning operations. The initial local contract supports declarative backend file generation only. Official plugins belong in the separate `provisionhub-official-plugins` repository. A searchable marketplace on the ProvisionLabs website remains future work.
 
 ## Current status
 
 Running `provisionhub` opens a TUI with a functional **Create Project** wizard. It collects a name and destination, lets you select a backend and optional frontend/database, reviews the choices, optionally previews a generation plan, and saves `provisionhub.yaml` only on explicit confirmation. The CLI can create the same manifest without a terminal, list built-in technologies, and preview a saved manifest as text or JSON. `version` and `--help` remain available.
 
-Open Existing Project, Plugin Marketplace, and Settings remain explanatory screens. The built-in catalog defines valid **configuration choices**, not working generators. No application source code, infrastructure, or CI/CD files are generated. Plugin discovery, provisioning, and settings persistence are not implemented.
+Open Existing Project, Plugin Marketplace, and Settings remain explanatory screens. The built-in catalog defines valid **configuration choices**; a matching local plugin is required for generation. Without plugins, plans retain unavailable-capability diagnostics. The official NestJS templates have not been added because the official plugin repository was unavailable in this workspace. Infrastructure provisioning, CI/CD generation, plugin installation, and settings persistence are not implemented.
 
 ## Build and run
 
@@ -50,13 +50,23 @@ provisionhub project plan --file ./my-application/provisionhub.yaml
 provisionhub project plan --file ./my-application/provisionhub.yaml --output json
 ```
 
-The shared Planning Engine validates the manifest and catalog selections, resolves technologies, and produces deterministic conceptual capabilities with stable IDs, dependencies, support status, and diagnostics. It does not create directories, change project files, or execute commands. All generation/integration providers are currently unavailable: `status: planned` means the plan was constructed, while `executable` remains `false`. A valid unsupported plan exits `0`; argument, file, validation, planning, or output errors exit `1`.
+The shared Planning Engine validates the manifest and catalog selections, resolves technologies, and produces deterministic operations with stable IDs, dependencies, support status, and diagnostics. It does not create directories, change project files, or execute commands. `status: planned` means the plan was constructed; `executable` is true only if every selected capability has a local generator. A valid unsupported plan exits `0`; argument, file, validation, planning, or output errors exit `1`.
 
-In the TUI, press `p` on **Review configuration** to preview before saving. Up/Down or `j`/`k` scrolls; Enter or Esc returns to Review without saving. Enter on Review retains its existing manifest-save action. See [generation planning](docs/generation-planning.md) for the model, diagnostics, JSON/error behavior, and limitations.
+In the TUI, press `p` on **Review configuration** to preview before saving. Up/Down or `j`/`k` scrolls; Enter or Esc returns to Review without saving. Enter on Review saves only the manifest. After saving, press `p` on the result screen to review the saved plan. For an executable plan, press `g`, then `y` to confirm generation; `n` or Esc cancels. Set `PROVISIONHUB_PLUGINS` to a local plugin directory before launching the TUI.
+
+For CLI generation, review and approve the same local plugin plan:
+
+```sh
+provisionhub project plan --file ./my-application/provisionhub.yaml --plugins ./path/to/plugins
+provisionhub project apply --file ./my-application/provisionhub.yaml --plugins ./path/to/plugins
+# Non-interactive automation must pass --yes after reviewing the plan.
+```
+
+`project apply` never installs dependencies or runs generated commands. See the [plugin contract](docs/architecture/plugins.md) and [generation planning](docs/generation-planning.md) for safety guarantees and limitations.
 
 ## Direction
 
-Configuration and conceptual generation planning are implemented. The next recommended milestone is one supported local generation vertical slice, with concrete operation definitions, safe target handling, and separately approved application of reviewed output. Plugin loading, broader integration-specific generation, infrastructure provisioning, and opening existing projects through the TUI remain future work.
+Configuration, local declarative plugin loading, concrete file plans, and separately approved local file generation are implemented. The next milestone is to add and validate the first official NestJS templates in `provisionhub-official-plugins`. Broader composition, infrastructure provisioning, and opening existing projects through the TUI remain future work.
 
 ProvisionHub aims to solve repeated project setup, incompatible technology choices, and fragmented integration work. For example, a future Spring Boot + PostgreSQL + Docker + GitHub Actions selection should produce one coherent project configuration, rather than four unrelated templates.
 
