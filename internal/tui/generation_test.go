@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/ProvisionLabs/provisionhub/internal/application"
 )
 
@@ -76,6 +77,13 @@ func TestTUIRequiresPreviewAndSeparateConfirmationToGenerate(t *testing.T) {
 	if !strings.Contains(m.View().Content, "package.json") {
 		t.Fatal("preview omits concrete target")
 	}
+	m.Update(tea.WindowSizeMsg{Width: 17, Height: 5})
+	for _, line := range strings.Split(m.View().Content, "\n") {
+		if lipgloss.Width(line) > 17 {
+			t.Fatalf("narrow preview overflow: %q", line)
+		}
+	}
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	press(m, 'g', "g")
 	if !m.wizard.confirm || !strings.Contains(m.View().Content, "confirm") {
 		t.Fatal("no confirmation screen")
@@ -91,6 +99,9 @@ func TestTUIRequiresPreviewAndSeparateConfirmationToGenerate(t *testing.T) {
 	cmd := press(m, 'y', "y")
 	if cmd == nil || !m.wizard.applying {
 		t.Fatal("confirmed apply did not start")
+	}
+	if _, quit := m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}); quit != nil {
+		t.Fatal("quit interrupted in-progress publication")
 	}
 	if _, err := os.Stat(output); !os.IsNotExist(err) {
 		t.Fatal("confirmation wrote before command")
