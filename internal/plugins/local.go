@@ -70,29 +70,21 @@ func LoadDirectory(root string, technologies catalog.Catalog) (Set, error) {
 			continue
 		}
 		folder := filepath.Join(root, entry.Name())
-		manifestPath := filepath.Join(folder, "plugin.yaml")
-		info, err := os.Lstat(manifestPath)
-		if errors.Is(err, fs.ErrNotExist) {
+		folderRoot, err := os.OpenRoot(folder)
+		if err != nil {
+			return Set{}, fmt.Errorf("open plugin %q: %w", folder, err)
+		}
+		m, found, loadErr := loadPluginFolder(folderRoot, folder, technologies)
+		closeErr := folderRoot.Close()
+		if loadErr != nil {
+			return Set{}, loadErr
+		}
+		if closeErr != nil {
+			return Set{}, closeErr
+		}
+		if !found {
 			continue
 		}
-		if err != nil {
-			return Set{}, fmt.Errorf("inspect %q: %w", manifestPath, err)
-		}
-		if !info.Mode().IsRegular() {
-			return Set{}, fmt.Errorf("plugin manifest %q must be a regular file", manifestPath)
-		}
-		if info.Size() > 1<<20 {
-			return Set{}, fmt.Errorf("plugin manifest %q exceeds 1 MiB", manifestPath)
-		}
-		data, err := os.ReadFile(manifestPath)
-		if err != nil {
-			return Set{}, fmt.Errorf("read %q: %w", manifestPath, err)
-		}
-		m, err := parse(data)
-		if err != nil {
-			return Set{}, fmt.Errorf("plugin %q: %w", manifestPath, err)
-		}
-		m.Digest = sha256.Sum256(data)
 		if ids[m.ID] {
 			return Set{}, fmt.Errorf("duplicate plugin ID %q", m.ID)
 		}
@@ -100,29 +92,53 @@ func LoadDirectory(root string, technologies catalog.Catalog) (Set, error) {
 		if _, ok := set.byTechnology[m.TechnologyID]; ok {
 			return Set{}, fmt.Errorf("duplicate generator for technology %q", m.TechnologyID)
 		}
-		technology, err := technologies.ValidateSelection(m.Category, m.TechnologyID)
-		if err != nil {
-			return Set{}, fmt.Errorf("plugin %q: %w", m.ID, err)
-		}
-		if technology.Name != m.Name {
-			return Set{}, fmt.Errorf("plugin %q changes catalog display name for %q", m.ID, m.TechnologyID)
-		}
-		for i := range m.Files {
-			content, err := readLocalFile(folder, m.Files[i].Source)
-			if err != nil {
-				return Set{}, fmt.Errorf("plugin %q file %q: %w", m.ID, m.Files[i].Source, err)
-			}
-			if m.Files[i].Type == "template" {
-				if err := validateVariables(content); err != nil {
-					return Set{}, fmt.Errorf("plugin %q file %q: %w", m.ID, m.Files[i].Source, err)
-				}
-			}
-			m.Files[i].Content = content
-			m.Files[i].Digest = sha256.Sum256(content)
-		}
 		set.byTechnology[m.TechnologyID] = m
 	}
 	return set, nil
+}
+
+func loadPluginFolder(root *os.Root, folder string, technologies catalog.Catalog) (Manifest, bool, error) {
+	manifestPath := filepath.Join(folder, "plugin.yaml")
+	info, err := root.Lstat("plugin.yaml")
+	if errors.Is(err, fs.ErrNotExist) {
+		return Manifest{}, false, nil
+	}
+	if err != nil {
+		return Manifest{}, false, fmt.Errorf("inspect %q: %w", manifestPath, err)
+	}
+	if !info.Mode().IsRegular() || info.Size() > 1<<20 {
+		return Manifest{}, false, fmt.Errorf("plugin manifest %q must be a regular file of at most 1 MiB", manifestPath)
+	}
+	data, err := readBounded(root, "plugin.yaml", 1<<20)
+	if err != nil {
+		return Manifest{}, false, fmt.Errorf("read %q: %w", manifestPath, err)
+	}
+	m, err := parse(data)
+	if err != nil {
+		return Manifest{}, false, fmt.Errorf("plugin %q: %w", manifestPath, err)
+	}
+	m.Digest = sha256.Sum256(data)
+	technology, err := technologies.ValidateSelection(m.Category, m.TechnologyID)
+	if err != nil {
+		return Manifest{}, false, fmt.Errorf("plugin %q: %w", m.ID, err)
+	}
+	if technology.Name != m.Name {
+		return Manifest{}, false, fmt.Errorf("plugin %q changes catalog display name for %q", m.ID, m.TechnologyID)
+	}
+	for i := range m.Files {
+		content, err := readLocalFile(root, m.Files[i].Source)
+		if err != nil {
+			return Manifest{}, false, fmt.Errorf("plugin %q file %q: %w", m.ID, m.Files[i].Source, err)
+		}
+		if m.Files[i].Type == "template" {
+			if err := validateVariables(content); err != nil {
+				return Manifest{}, false, fmt.Errorf("plugin %q file %q: %w", m.ID, m.Files[i].Source, err)
+			}
+		}
+		m.Files[i].Content = content
+		m.Files[i].Digest = sha256.Sum256(content)
+	}
+	return m, true, nil
 }
 
 func parse(data []byte) (Manifest, error) {
@@ -227,15 +243,15 @@ func validatePath(p string) error {
 	return nil
 }
 
-func readLocalFile(folder, name string) ([]byte, error) {
+func readLocalFile(root *os.Root, name string) ([]byte, error) {
 	if err := validatePath(name); err != nil {
 		return nil, err
 	}
-	current := folder
+	current := ""
 	parts := strings.Split(name, "/")
 	for i, part := range parts {
-		current = filepath.Join(current, part)
-		info, err := os.Lstat(current)
+		current = path.Join(current, part)
+		info, err := root.Lstat(current)
 		if err != nil {
 			return nil, err
 		}
@@ -250,12 +266,23 @@ func readLocalFile(folder, name string) ([]byte, error) {
 			return nil, errors.New("template path contains a non-directory")
 		}
 	}
-	root, err := os.OpenRoot(folder)
+	return readBounded(root, name, 1<<20)
+}
+
+func readBounded(root *os.Root, name string, limit int64) ([]byte, error) {
+	file, err := root.Open(name)
 	if err != nil {
 		return nil, err
 	}
-	defer root.Close()
-	return root.ReadFile(name)
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("file %q exceeds %d bytes", name, limit)
+	}
+	return data, nil
 }
 
 func validateVariables(content []byte) error {
