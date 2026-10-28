@@ -39,10 +39,11 @@ func Preflight(reviewed planning.Plan, manifest project.Manifest, loaded plugins
 	if destination == "" {
 		return errors.New("destination is required")
 	}
-	if err := checkDestination(destination); err != nil {
+	resolved, err := checkDestination(destination)
+	if err != nil {
 		return err
 	}
-	root, err := os.OpenRoot(destination)
+	root, err := os.OpenRoot(resolved)
 	if err != nil {
 		return fmt.Errorf("open project destination: %w", err)
 	}
@@ -82,10 +83,11 @@ func Apply(reviewed planning.Plan, manifest project.Manifest, loaded plugins.Set
 	if destination == "" {
 		return Result{}, errors.New("destination is required")
 	}
-	if err := checkDestination(destination); err != nil {
+	resolved, err := checkDestination(destination)
+	if err != nil {
 		return Result{}, err
 	}
-	root, err := os.OpenRoot(destination)
+	root, err := os.OpenRoot(resolved)
 	if err != nil {
 		return Result{}, fmt.Errorf("open project destination: %w", err)
 	}
@@ -255,24 +257,27 @@ func createStage(root *os.Root) (string, error) {
 	return "", errors.New("cannot allocate a unique staging directory")
 }
 
-func checkDestination(destination string) error {
+func checkDestination(destination string) (string, error) {
 	abs, err := filepath.Abs(destination)
 	if err != nil {
-		return err
+		return "", err
 	}
-	for current := abs; ; current = filepath.Dir(current) {
-		info, err := os.Lstat(current)
-		if err != nil {
-			return fmt.Errorf("inspect destination %q: %w", current, err)
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("destination path %q is a symlink", current)
-		}
-		if !info.IsDir() {
-			return fmt.Errorf("destination path %q is not a directory", current)
-		}
-		if parent := filepath.Dir(current); parent == current {
-			return nil
-		}
+	info, err := os.Lstat(abs)
+	if err != nil {
+		return "", fmt.Errorf("inspect destination %q: %w", abs, err)
 	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return "", fmt.Errorf("destination %q is a symlink", abs)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("destination %q is not a directory", abs)
+	}
+	// Standard macOS paths such as /var can be symlinked ancestors. Resolve
+	// those before opening the confined root; the chosen directory itself must
+	// still be a real directory.
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return "", fmt.Errorf("resolve destination %q: %w", abs, err)
+	}
+	return resolved, nil
 }

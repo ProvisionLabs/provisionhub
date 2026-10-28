@@ -136,3 +136,30 @@ func TestApplyRejectsStalePlanAndSymlinkedOutputParent(t *testing.T) {
 		t.Fatal("wrote outside project")
 	}
 }
+
+func TestApplyAllowsCanonicalizedAncestorButRejectsDestinationSymlink(t *testing.T) {
+	destination, _, manifest, set, plan := fixture(t)
+	alias := filepath.Join(t.TempDir(), "alias")
+	if err := os.Symlink(filepath.Dir(destination), alias); err != nil {
+		t.Skipf("directory symlinks unavailable: %v", err)
+	}
+	throughAncestor := filepath.Join(alias, filepath.Base(destination))
+	if _, err := Apply(plan, manifest, set, throughAncestor); err != nil {
+		t.Fatalf("symlinked ancestor should resolve to the chosen directory: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(destination, "package.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	other, _, otherManifest, otherSet, otherPlan := fixture(t)
+	direct := filepath.Join(t.TempDir(), "direct")
+	if err := os.Symlink(other, direct); err != nil {
+		t.Skipf("directory symlinks unavailable: %v", err)
+	}
+	if _, err := Apply(otherPlan, otherManifest, otherSet, direct); err == nil {
+		t.Fatal("accepted a symlink as the destination itself")
+	}
+	if _, err := os.Stat(filepath.Join(other, "package.json")); !os.IsNotExist(err) {
+		t.Fatal("wrote through destination symlink")
+	}
+}

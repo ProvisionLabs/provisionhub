@@ -45,7 +45,7 @@ On Create Project's Review step, `p` previews the current unsaved configuration.
 ## Filesystem guarantees and limits
 
 - Plugin paths are relative, clean slash paths; traversal, absolute paths, symlinked sources/outputs, duplicate or overlapping outputs, and writes to `provisionhub.yaml` are rejected.
-- The executor opens the approved destination with `os.Root`, checks that it contains a regular manifest, and rejects symlinked destination ancestors and output parents. Root-relative operations cannot escape the opened root on Windows, Linux, and macOS.
+- The executor resolves symlinked ancestors (including standard macOS paths such as `/var`), opens the chosen directory with `os.Root`, checks that it contains a regular manifest, and rejects a symlink at the destination itself or in generated output parents. Root-relative operations cannot escape the opened root on Windows, Linux, and macOS.
 - All content is rendered and staged in a private directory under the destination before publication. Each file is published with a no-overwrite hard link. Pre-existing targets stop application before staging; conflicts during publication also fail without replacing them.
 - On a later failure, the executor attempts to remove published files that still refer to its staged content and to remove empty directories it created. Multi-file generation is not fully atomic. A crash or concurrent filesystem modification may leave partial files or directories; cleanup failures are returned. Check the destination before retrying.
 - Hard links must be supported by the destination filesystem. There is no overwriting fallback, shell execution, dependency installation, network call, or infrastructure operation. This is not a general sandbox or rollback engine.
