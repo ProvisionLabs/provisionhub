@@ -60,9 +60,10 @@ func formatPlan(plan planning.Plan) string {
 		fmt.Fprintf(&out, "  %s: %s [%s]\n", operation.ID, operation.Description, operation.Status)
 		if operation.PluginID != "" {
 			fmt.Fprintf(&out, "    Plugin: %s\n", operation.PluginID)
+			fmt.Fprintf(&out, "    Plugin digest: %s\n", operation.PluginDigest)
 		}
 		if operation.Source != "" {
-			fmt.Fprintf(&out, "    Source: %s (%s)\n", operation.Source, operation.SourceType)
+			fmt.Fprintf(&out, "    Source: %s (%s, sha256:%s)\n", operation.Source, operation.SourceType, operation.SourceDigest)
 		}
 		for _, target := range operation.TargetPaths {
 			fmt.Fprintf(&out, "    Target: %s\n", target)

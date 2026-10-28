@@ -23,9 +23,11 @@ func (w *wizard) planLines(width int) []string {
 		lines = append(lines, fmt.Sprintf("  %s: %s [%s]", operation.ID, operation.Description, operation.Status))
 		if operation.PluginID != "" {
 			lines = append(lines, "    Plugin: "+operation.PluginID)
+			lines = append(lines, "    Plugin digest: "+operation.PluginDigest)
 		}
 		if operation.Source != "" {
 			lines = append(lines, "    Source: "+operation.Source+" ("+operation.SourceType+")")
+			lines = append(lines, "    SHA-256: "+operation.SourceDigest)
 		}
 		for _, target := range operation.TargetPaths {
 			lines = append(lines, "    Target: "+target)

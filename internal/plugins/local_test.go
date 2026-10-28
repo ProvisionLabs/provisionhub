@@ -57,11 +57,15 @@ func TestLoadLocalPlugin(t *testing.T) {
 func TestRejectInvalidPluginDefinitions(t *testing.T) {
 	tests := []struct{ name, manifest, content string }{
 		{"schema", strings.Replace(testPlugin, APIVersion, "old", 1), ""},
+		{"version", strings.Replace(testPlugin, "version: 1.0.0", "version: unknown", 1), ""},
 		{"unknown technology", strings.Replace(testPlugin, "technologyId: nestjs", "technologyId: unknown", 1), ""},
 		{"wrong category", strings.Replace(testPlugin, "category: backend", "category: frontend", 1), ""},
 		{"traversal source", strings.Replace(testPlugin, "templates/package.json.tmpl", "../secret", 1), ""},
 		{"traversal destination", strings.Replace(testPlugin, "destination: package.json", "destination: ../escape", 1), ""},
 		{"absolute destination", strings.Replace(testPlugin, "destination: package.json", "destination: /escape", 1), ""},
+		{"reserved destination", strings.Replace(testPlugin, "destination: package.json", "destination: CON.txt", 1), ""},
+		{"manifest destination", strings.Replace(testPlugin, "destination: package.json", "destination: ProvisionHub.yaml", 1), ""},
+		{"command field", testPlugin + "command: npm install\n", ""},
 		{"duplicate outputs", testPlugin + "  - type: copy\n    source: templates/package.json.tmpl\n    destination: package.json\n", ""},
 		{"unknown field", testPlugin + "surprise: true\n", ""},
 		{"unsupported variable", testPlugin, "{{secret}}"},
@@ -89,6 +93,12 @@ func TestRejectDuplicateAndSymlinkedPlugins(t *testing.T) {
 	writeTestPlugin(t, root, "two", testPlugin)
 	if _, err := LoadDirectory(root, catalog.Builtin()); err == nil || !strings.Contains(err.Error(), "duplicate plugin ID") {
 		t.Fatalf("duplicate ID: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "two", "plugin.yaml"), []byte(strings.Replace(testPlugin, "id: official-nestjs", "id: alternate-nestjs", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadDirectory(root, catalog.Builtin()); err == nil || !strings.Contains(err.Error(), "duplicate generator") {
+		t.Fatalf("duplicate generator: %v", err)
 	}
 	if err := os.RemoveAll(filepath.Join(root, "two")); err != nil {
 		t.Fatal(err)

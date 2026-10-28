@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -191,17 +192,9 @@ func validID(s string) bool {
 	return true
 }
 
-func validVersion(s string) bool {
-	if s == "" || len(s) > 64 {
-		return false
-	}
-	for _, r := range s {
-		if (r < '0' || r > '9') && r != '.' && r != '-' && (r < 'a' || r > 'z') {
-			return false
-		}
-	}
-	return true
-}
+var versionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-z0-9][a-z0-9.-]*)?$`)
+
+func validVersion(s string) bool { return len(s) <= 64 && versionPattern.MatchString(s) }
 
 // Paths use slash separators on every platform. Reject all ambiguous forms.
 func validatePath(p string) error {
@@ -217,6 +210,18 @@ func validatePath(p string) error {
 	for _, segment := range strings.Split(p, "/") {
 		if segment == "." || segment == ".." || segment == "" {
 			return errors.New("path contains an unsafe segment")
+		}
+		if strings.TrimRight(segment, " .") != segment {
+			return errors.New("path segment ends in a dot or space")
+		}
+		base := strings.ToUpper(strings.Split(segment, ".")[0])
+		if base == "CON" || base == "PRN" || base == "AUX" || base == "NUL" || len(base) == 4 && ((strings.HasPrefix(base, "COM") || strings.HasPrefix(base, "LPT")) && base[3] >= '1' && base[3] <= '9') {
+			return errors.New("path contains a Windows reserved device name")
+		}
+		for _, r := range segment {
+			if r < 32 {
+				return errors.New("path contains a control character")
+			}
 		}
 	}
 	return nil
