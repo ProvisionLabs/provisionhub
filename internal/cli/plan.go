@@ -11,7 +11,7 @@ import (
 )
 
 func newPlanCommand() *cobra.Command {
-	var file, output string
+	var file, output, pluginDirectory string
 	command := &cobra.Command{
 		Use: "plan", Short: "Preview generation capabilities without writing or executing anything",
 		Long: "Preview a generation plan without writing project files or executing operations.\nExit 0 means a plan was constructed, even when execution is unavailable.\nExit 1 means an input, loading, validation, planning, or output failure.",
@@ -20,7 +20,11 @@ func newPlanCommand() *cobra.Command {
 			if output != "text" && output != "json" {
 				return fmt.Errorf("unsupported output format %q (expected text or json)", output)
 			}
-			plan, planErr := application.NewProjectService().PlanProject(file)
+			service, err := application.NewProjectServiceWithPlugins(pluginDirectory)
+			if err != nil {
+				return err
+			}
+			plan, planErr := service.PlanProject(file)
 			if output == "json" {
 				encoder := json.NewEncoder(cmd.OutOrStdout())
 				encoder.SetIndent("", "  ")
@@ -35,13 +39,18 @@ func newPlanCommand() *cobra.Command {
 	}
 	command.Flags().StringVar(&file, "file", "", "Path to provisionhub.yaml (required)")
 	command.Flags().StringVar(&output, "output", "text", "Output format: text or json")
+	command.Flags().StringVar(&pluginDirectory, "plugins", "", "Local plugin directory (optional)")
 	_ = command.MarkFlagRequired("file")
 	return command
 }
 
 func formatPlan(plan planning.Plan) string {
 	var out strings.Builder
-	fmt.Fprintf(&out, "ProvisionHub — Generation Plan\n\nProject: %s\nManifest version: %s\nStatus: %s\nExecution: unavailable (no execution engine)\n", plan.ProjectName, plan.ManifestVersion, plan.Status)
+	execution := "unavailable (missing generation capabilities)"
+	if plan.Executable {
+		execution = "available after explicit approval"
+	}
+	fmt.Fprintf(&out, "ProvisionHub — Generation Plan\n\nProject: %s\nManifest version: %s\nStatus: %s\nExecution: %s\n", plan.ProjectName, plan.ManifestVersion, plan.Status, execution)
 	fmt.Fprintln(&out, "\nSelected Technologies:")
 	for _, technology := range plan.Technologies {
 		fmt.Fprintf(&out, "  %s: %s (%s)\n", technology.Category, technology.Name, technology.ID)
@@ -49,6 +58,15 @@ func formatPlan(plan planning.Plan) string {
 	fmt.Fprintln(&out, "\nPlanned Capabilities:")
 	for _, operation := range plan.Operations {
 		fmt.Fprintf(&out, "  %s: %s [%s]\n", operation.ID, operation.Description, operation.Status)
+		if operation.PluginID != "" {
+			fmt.Fprintf(&out, "    Plugin: %s\n", operation.PluginID)
+		}
+		if operation.Source != "" {
+			fmt.Fprintf(&out, "    Source: %s (%s)\n", operation.Source, operation.SourceType)
+		}
+		for _, target := range operation.TargetPaths {
+			fmt.Fprintf(&out, "    Target: %s\n", target)
+		}
 		if len(operation.Dependencies) != 0 {
 			fmt.Fprintf(&out, "    Depends on: %s\n", strings.Join(operation.Dependencies, ", "))
 		}

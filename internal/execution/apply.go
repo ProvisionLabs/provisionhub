@@ -29,9 +29,52 @@ type output struct {
 	data []byte
 }
 
+// Preflight performs read-only destination and freshness checks. Apply repeats
+// them because the filesystem can change between review and publication.
+func Preflight(reviewed planning.Plan, manifest project.Manifest, loaded plugins.Set, destination string) error {
+	fresh := planning.BuildWithPlugins(manifest, catalog.Builtin(), loaded)
+	if !fresh.Executable || !reflect.DeepEqual(reviewed, fresh) {
+		return errors.New("generation plan changed or is unavailable; review a new plan before applying")
+	}
+	if destination == "" {
+		return errors.New("destination is required")
+	}
+	if err := checkDestination(destination); err != nil {
+		return err
+	}
+	root, err := os.OpenRoot(destination)
+	if err != nil {
+		return fmt.Errorf("open project destination: %w", err)
+	}
+	defer root.Close()
+	info, err := root.Lstat(project.ManifestName)
+	if err != nil || !info.Mode().IsRegular() {
+		return errors.New("destination must contain a regular provisionhub.yaml")
+	}
+	fileCount := 0
+	for _, op := range fresh.Operations {
+		if op.Type == planning.GenerateFile {
+			fileCount++
+			if len(op.TargetPaths) != 1 {
+				return fmt.Errorf("invalid file operation %q", op.ID)
+			}
+			if err := checkTarget(root, op.TargetPaths[0]); err != nil {
+				return err
+			}
+		}
+	}
+	if fileCount == 0 {
+		return errors.New("plan has no concrete file operations")
+	}
+	return nil
+}
+
 // Apply rechecks the plan against the current manifest and plugin snapshot.
 // It stages every rendered file, then publishes through no-overwrite hard links.
 func Apply(reviewed planning.Plan, manifest project.Manifest, loaded plugins.Set, destination string) (Result, error) {
+	if err := Preflight(reviewed, manifest, loaded, destination); err != nil {
+		return Result{}, err
+	}
 	fresh := planning.BuildWithPlugins(manifest, catalog.Builtin(), loaded)
 	if !fresh.Executable || !reflect.DeepEqual(reviewed, fresh) {
 		return Result{}, errors.New("generation plan changed or is unavailable; review a new plan before applying")

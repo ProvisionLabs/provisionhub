@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ProvisionLabs/provisionhub/internal/catalog"
+	"github.com/ProvisionLabs/provisionhub/internal/plugins"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
 )
 
@@ -21,11 +22,24 @@ type CreateProjectResult struct {
 }
 
 type ProjectService struct {
-	catalog catalog.Catalog
+	catalog         catalog.Catalog
+	plugins         plugins.Set
+	pluginDirectory string
 }
 
 func NewProjectService() ProjectService {
 	return ProjectService{catalog: catalog.Builtin()}
+}
+
+func NewProjectServiceWithPlugins(directory string) (ProjectService, error) {
+	s := NewProjectService()
+	loaded, err := plugins.LoadDirectory(directory, s.catalog)
+	if err != nil {
+		return ProjectService{}, err
+	}
+	s.plugins = loaded
+	s.pluginDirectory = directory
+	return s, nil
 }
 
 func (s ProjectService) Technologies(category catalog.Category) []catalog.Technology {
