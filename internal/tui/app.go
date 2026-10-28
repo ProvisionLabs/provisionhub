@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"strings"
 
 	"charm.land/bubbles/v2/help"
@@ -61,6 +62,17 @@ func NewModel(info application.AppInfo) *Model {
 	return &Model{info: info, service: application.NewProjectService(), help: h, width: 80, height: 24}
 }
 
+// NewModelWithPlugins loads an explicit local plugin directory for this session.
+func NewModelWithPlugins(info application.AppInfo, directory string) (*Model, error) {
+	service, err := application.NewProjectServiceWithPlugins(directory)
+	if err != nil {
+		return nil, err
+	}
+	m := NewModel(info)
+	m.service = service
+	return m, nil
+}
+
 func (m *Model) Init() tea.Cmd { return nil }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -71,6 +83,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.wizard.resize(msg.Width, msg.Height)
 	case projectCreatedMsg:
 		m.wizard.created(msg)
+	case projectAppliedMsg:
+		m.wizard.applied(msg)
 	case tea.KeyPressMsg:
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
@@ -208,6 +222,10 @@ func (m *Model) compactView(width, height int) string {
 
 // Run owns the terminal session and returns after the user quits or an error occurs.
 func Run(info application.AppInfo) error {
-	_, err := tea.NewProgram(NewModel(info)).Run()
+	model, err := NewModelWithPlugins(info, os.Getenv("PROVISIONHUB_PLUGINS"))
+	if err != nil {
+		return err
+	}
+	_, err = tea.NewProgram(model).Run()
 	return err
 }

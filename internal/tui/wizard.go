@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/ProvisionLabs/provisionhub/internal/application"
 	"github.com/ProvisionLabs/provisionhub/internal/catalog"
+	"github.com/ProvisionLabs/provisionhub/internal/execution"
 	"github.com/ProvisionLabs/provisionhub/internal/planning"
 )
 
@@ -28,6 +29,11 @@ type projectCreatedMsg struct {
 	err    error
 }
 
+type projectAppliedMsg struct {
+	result execution.Result
+	err    error
+}
+
 type wizard struct {
 	step        wizardStep
 	name        textinput.Model
@@ -38,6 +44,9 @@ type wizard struct {
 	saving      bool
 	result      application.CreateProjectResult
 	preview     bool
+	confirm     bool
+	applying    bool
+	applyResult execution.Result
 	plan        planning.Plan
 	planOffset  int
 	width       int
@@ -127,15 +136,38 @@ func (w *wizard) focusField(index int) tea.Cmd {
 
 // update returns a command and whether the wizard should return to Home.
 func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService) (tea.Cmd, bool) {
-	if w.saving {
+	if w.saving || w.applying {
 		return nil, false
 	}
 	w.err = ""
 	key := msg.String()
 	if w.preview {
+		if w.confirm {
+			switch key {
+			case "esc", "n":
+				w.confirm = false
+			case "y":
+				w.confirm = false
+				w.applying = true
+				file, plan := w.result.ManifestPath, w.plan
+				return func() tea.Msg {
+					result, err := service.ApplyProject(file, plan)
+					return projectAppliedMsg{result: result, err: err}
+				}, false
+			}
+			return nil, false
+		}
 		switch key {
 		case "esc", "enter", "p":
 			w.preview = false
+		case "g":
+			if w.step == resultStep && w.plan.Executable && w.applyResult.Created == nil {
+				if err := service.PreflightProject(w.result.ManifestPath, w.plan); err != nil {
+					w.err = err.Error()
+				} else {
+					w.confirm = true
+				}
+			}
 		case "down", "j":
 			w.planOffset++
 		case "up", "k":
@@ -226,11 +258,31 @@ func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService)
 			}, false
 		}
 	case resultStep:
+		if key == "p" {
+			plan, err := service.PlanProject(w.result.ManifestPath)
+			if err != nil {
+				w.err = err.Error()
+				return nil, false
+			}
+			w.plan, w.preview, w.planOffset = plan, true, 0
+			return nil, false
+		}
 		if key == "esc" || key == "enter" {
 			return nil, true
 		}
 	}
 	return nil, false
+}
+
+func (w *wizard) applied(msg projectAppliedMsg) {
+	w.applying = false
+	w.preview = false
+	if msg.err != nil {
+		w.err = msg.err.Error()
+		return
+	}
+	w.applyResult = msg.result
+	w.err = ""
 }
 
 func (w *wizard) created(msg projectCreatedMsg) {
@@ -288,6 +340,13 @@ func (w *wizard) lines(service application.ProjectService, contentWidth int) []s
 		)
 		if w.step == resultStep {
 			lines = append(lines, "", selected.Render("Manifest created successfully"), "Manifest: "+fitTail(w.result.ManifestPath, contentWidth-len("Manifest: ")))
+			if len(w.applyResult.Created) > 0 {
+				lines = append(lines, "", selected.Render(fmt.Sprintf("Generated %d project files", len(w.applyResult.Created))))
+			} else if w.applying {
+				lines = append(lines, "", "Generating project files...")
+			} else {
+				lines = append(lines, "", "Press p to review generation (local plugins required)")
+			}
 		} else if w.saving {
 			lines = append(lines, "", "Creating manifest...")
 		} else {
@@ -341,7 +400,7 @@ func (w *wizard) footer() string {
 	case reviewStep:
 		return "p plan · enter create · esc back · q quit"
 	default:
-		return "enter/esc home · q quit"
+		return "p plan · enter/esc home · q quit"
 	}
 }
 
@@ -364,6 +423,9 @@ func (w *wizard) compactLines(service application.ProjectService) []string {
 			service.TechnologyName(input.Backend)+" / "+service.TechnologyName(input.Frontend)+" / "+service.TechnologyName(input.Database))
 		if w.step == resultStep {
 			lines = append(lines, "Saved: "+w.result.ManifestPath)
+			if len(w.applyResult.Created) > 0 {
+				lines = append(lines, fmt.Sprintf("Generated %d files", len(w.applyResult.Created)))
+			}
 		}
 	}
 	if w.err != "" {
