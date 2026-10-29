@@ -69,26 +69,28 @@ provisionhub project apply --file ./my-application/provisionhub.yaml --plugins .
 
 `project apply` never installs dependencies or runs generated commands. See the [plugin contract](docs/architecture/plugins.md) and [generation planning](docs/generation-planning.md) for safety guarantees and limitations.
 
-With the official plugins repository checked out alongside this one, a NestJS-only
-configuration can generate a functional backend:
+With the official plugins repository checked out alongside this one, a NestJS
+and Next.js configuration can generate both applications:
 
 ```sh
-provisionhub project init --name sample-api --path ../sample-api --backend nestjs
-provisionhub project plan --file ../sample-api/provisionhub.yaml --plugins ../provisionhub-official-plugins/plugins
-provisionhub project apply --file ../sample-api/provisionhub.yaml --plugins ../provisionhub-official-plugins/plugins
-cd ../sample-api/backend
+provisionhub project init --name sample-web --path ../sample-web --backend nestjs --frontend nextjs
+provisionhub project plan --file ../sample-web/provisionhub.yaml --plugins ../provisionhub-official-plugins/plugins
+provisionhub project apply --file ../sample-web/provisionhub.yaml --plugins ../provisionhub-official-plugins/plugins
+cd ../sample-web/frontend
 npm install
 npm run build
 npm run start
 ```
 
-Review and approve generation at the prompt. The generated application requires
-Node.js 24.15+ and serves `Hello from sample-api!` at <http://127.0.0.1:3000/>.
-Select no frontend or database for this plugin: their generators are still absent.
+Review and approve generation at the prompt. The Next.js frontend serves a
+starter page at <http://localhost:3000/>. The generated NestJS backend runs
+separately from `../sample-web/backend` after its own `npm install` and
+`npm run build`. NestJS requires Node.js 24.15+. Choose another `PORT` if running
+both applications at once. Database generation remains unavailable.
 
 ## Direction
 
-Configuration, local declarative plugin loading, concrete file plans, and separately approved local file generation are implemented. The first official NestJS templates in `provisionhub-official-plugins` have been validated locally through generation, npm installation, build, and an HTTP request. Broader composition, infrastructure provisioning, and opening existing projects through the TUI remain future work.
+Configuration, local declarative plugin loading, concrete file plans, and separately approved local file generation are implemented. Official NestJS and Next.js templates in `provisionhub-official-plugins` have been validated locally through combined generation, npm installation, builds, and HTTP requests. Broader composition, infrastructure provisioning, and opening existing projects through the TUI remain future work.
 
 ProvisionHub aims to solve repeated project setup, incompatible technology choices, and fragmented integration work. For example, a future Spring Boot + PostgreSQL + Docker + GitHub Actions selection should produce one coherent project configuration, rather than four unrelated templates.
 
