@@ -139,3 +139,74 @@ func TestTUIApplyFailureKeepsManifestAndAllowsReviewRetry(t *testing.T) {
 		t.Fatal("cannot review after failure")
 	}
 }
+
+func TestTUICombinedFrontendPreviewAndConfirmation(t *testing.T) {
+	m, destination := generatorModel(t)
+	plugin := filepath.Join(filepath.Dir(destination), "plugins", "nextjs")
+	if err := os.MkdirAll(filepath.Join(plugin, "templates"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	definition := `apiVersion: provisionhub.dev/plugin/v1alpha1
+id: official-nextjs
+version: 1.0.0
+technologyId: nextjs
+category: frontend
+name: Next.js
+description: Minimal Next.js frontend
+capability: generate_frontend
+files:
+  - type: template
+    source: templates/package.json.tmpl
+    destination: frontend/package.json
+`
+	if err := os.WriteFile(filepath.Join(plugin, "plugin.yaml"), []byte(definition), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plugin, "templates", "package.json.tmpl"), []byte(`{"name":"{{projectName}}"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	openWizard(m, "my-app", destination)
+	press(m, tea.KeyDown, "") // NestJS backend.
+	press(m, tea.KeyEnter, "")
+	press(m, tea.KeyDown, "") // Next.js frontend.
+	press(m, tea.KeyEnter, "")
+	press(m, tea.KeyEnter, "") // No database.
+	if m.wizard.step != reviewStep {
+		t.Fatalf("review step: %v, %s", m.wizard.step, m.wizard.err)
+	}
+	cmd := press(m, tea.KeyEnter, "")
+	if cmd == nil {
+		t.Fatal("manifest save did not start")
+	}
+	m.Update(cmd())
+	if m.wizard.step != resultStep {
+		t.Fatalf("save failed: %s", m.wizard.err)
+	}
+	press(m, 'p', "p")
+	if !m.wizard.preview || !m.wizard.plan.Executable {
+		t.Fatalf("combined preview: %+v", m.wizard.plan)
+	}
+	preview := strings.Join(m.wizard.planLines(80), "\n")
+	for _, part := range []string{"frontend:nextjs", "official-nextjs", "frontend/package.json", "backend:nestjs"} {
+		if !strings.Contains(preview, part) {
+			t.Fatalf("preview missing %q", part)
+		}
+	}
+	press(m, 'g', "g")
+	press(m, 'n', "n")
+	if _, err := os.Stat(filepath.Join(destination, "frontend", "package.json")); !os.IsNotExist(err) {
+		t.Fatal("canceled generation wrote frontend")
+	}
+	press(m, 'g', "g")
+	cmd = press(m, 'y', "y")
+	if cmd == nil {
+		t.Fatal("confirmed generation did not start")
+	}
+	m.Update(cmd())
+	for _, target := range []string{"package.json", "frontend/package.json"} {
+		data, err := os.ReadFile(filepath.Join(destination, target))
+		if err != nil || !strings.Contains(string(data), "my-app") {
+			t.Fatalf("generated %q: %v %s", target, err, data)
+		}
+	}
+}
