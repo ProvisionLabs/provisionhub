@@ -41,7 +41,7 @@ The current built-in catalog contains:
 
 The YAML reader rejects malformed YAML, unknown fields, multiple documents, missing required fields, unsupported API versions, and unsupported kinds. The application layer additionally validates technology IDs and category membership when creating or loading a manifest. It does not accept arbitrary unrecognized technologies yet.
 
-The `v1alpha1` version marks the current schema as subject to change. Future schema changes should use an explicit new `apiVersion` and a documented migration path; they should not silently reinterpret existing files. Future plugins may contribute catalog entries; plugin loading and a generic resolver are not implemented.
+The `v1alpha1` version marks the current schema as subject to change. Future schema changes should use an explicit new `apiVersion` and a documented migration path; they should not silently reinterpret existing files. Local declarative plugins can supply backend generators for existing catalog IDs. Plugins cannot contribute new catalog entries yet, and a generic resolver is not implemented.
 
 Do not put credentials or secrets in the manifest. No credential fields exist in this schema.
 

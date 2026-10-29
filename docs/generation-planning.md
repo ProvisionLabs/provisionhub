@@ -50,6 +50,6 @@ On Create Project's Review step, `p` previews the current unsaved configuration.
 - On a later failure, the executor attempts to remove published files that still refer to its staged content and to remove empty directories it created. Multi-file generation is not fully atomic. A crash or concurrent filesystem modification may leave partial files or directories; cleanup failures are returned. Check the destination before retrying.
 - Hard links must be supported by the destination filesystem. There is no overwriting fallback, shell execution, dependency installation, network call, or infrastructure operation. This is not a general sandbox or rollback engine.
 
-## Next increment
+## Official NestJS integration
 
-Add the official NestJS plugin in `provisionhub-official-plugins`, validate the generated project with npm when available, and then extend composition only from concrete integration needs. The official repository was unavailable locally during the initial engine implementation; no official NestJS template or end-to-end npm result is claimed here.
+The official plugin at `provisionhub-official-plugins/plugins/nestjs` uses this existing contract to generate ten files under `backend/`. Point `--plugins` to that repository's `plugins` directory and select only `nestjs`. Local Windows validation covered discovery, deterministic supported operations, non-interactive approval refusal, approved generation, no-overwrite conflicts, npm installation/build, and HTTP 200 from the started application. Repeatable integration tests and detailed results live in the plugin repository. No core runtime changes were required. Linux/macOS runtime validation is not claimed. Broader composition should follow concrete integration needs.

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 
 	"charm.land/bubbles/v2/help"
@@ -225,10 +226,35 @@ func (m *Model) compactView(width, height int) string {
 
 // Run owns the terminal session and returns after the user quits or an error occurs.
 func Run(info application.AppInfo) error {
-	model, err := NewModelWithPlugins(info, os.Getenv("PROVISIONHUB_PLUGINS"))
+	directory, err := localPluginDirectory()
+	if err != nil {
+		return err
+	}
+	model, err := NewModelWithPlugins(info, directory)
 	if err != nil {
 		return err
 	}
 	_, err = tea.NewProgram(model).Run()
 	return err
+}
+
+func localPluginDirectory() (string, error) {
+	if directory := os.Getenv("PROVISIONHUB_PLUGINS"); directory != "" {
+		return directory, nil
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	return adjacentPluginDirectory(executable)
+}
+
+func adjacentPluginDirectory(executable string) (string, error) {
+	directory := filepath.Join(filepath.Dir(executable), "plugins")
+	if _, err := os.Stat(directory); os.IsNotExist(err) {
+		return "", nil
+	} else if err != nil {
+		return "", err
+	}
+	return directory, nil
 }

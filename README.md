@@ -10,7 +10,7 @@ Plugins are intended to provide templates, technology integrations, and provisio
 
 Running `provisionhub` opens a TUI with a functional **Create Project** wizard. It collects a name and destination, lets you select a backend and optional frontend/database, reviews the choices, optionally previews a generation plan, and saves `provisionhub.yaml` only on explicit confirmation. The CLI can create the same manifest without a terminal, list built-in technologies, and preview a saved manifest as text or JSON. `version` and `--help` remain available.
 
-Open Existing Project, Plugin Marketplace, and Settings remain explanatory screens. The built-in catalog defines valid **configuration choices**; a matching local plugin is required for generation. Without plugins, plans retain unavailable-capability diagnostics. The official NestJS templates have not been added because the official plugin repository was unavailable in this workspace. Infrastructure provisioning, CI/CD generation, plugin installation, and settings persistence are not implemented.
+Open Existing Project, Plugin Marketplace, and Settings remain explanatory screens. The built-in catalog defines valid **configuration choices**; a matching local plugin is required for generation. Without plugins, plans retain unavailable-capability diagnostics. The first official NestJS generator lives in the separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins/tree/main/plugins/nestjs). Infrastructure provisioning, CI/CD generation, plugin installation, and settings persistence are not implemented.
 
 ## Build and run
 
@@ -25,6 +25,11 @@ go build ./cmd/provisionhub
 ```
 
 After `go build`, run `./provisionhub` on Linux/macOS or `.\provisionhub.exe` on Windows. `go install ./cmd/provisionhub` installs to your Go binary directory.
+
+Portable builds can include a `plugins` directory beside the executable. The TUI
+loads it automatically unless `PROVISIONHUB_PLUGINS` supplies an explicit override.
+Keep the executable and that directory together when moving a portable build.
+CLI plan/apply commands continue to use the explicit `--plugins` flag.
 
 ### Create a project configuration
 
@@ -64,9 +69,26 @@ provisionhub project apply --file ./my-application/provisionhub.yaml --plugins .
 
 `project apply` never installs dependencies or runs generated commands. See the [plugin contract](docs/architecture/plugins.md) and [generation planning](docs/generation-planning.md) for safety guarantees and limitations.
 
+With the official plugins repository checked out alongside this one, a NestJS-only
+configuration can generate a functional backend:
+
+```sh
+provisionhub project init --name sample-api --path ../sample-api --backend nestjs
+provisionhub project plan --file ../sample-api/provisionhub.yaml --plugins ../provisionhub-official-plugins/plugins
+provisionhub project apply --file ../sample-api/provisionhub.yaml --plugins ../provisionhub-official-plugins/plugins
+cd ../sample-api/backend
+npm install
+npm run build
+npm run start
+```
+
+Review and approve generation at the prompt. The generated application requires
+Node.js 24.15+ and serves `Hello from sample-api!` at <http://127.0.0.1:3000/>.
+Select no frontend or database for this plugin: their generators are still absent.
+
 ## Direction
 
-Configuration, local declarative plugin loading, concrete file plans, and separately approved local file generation are implemented. The next milestone is to add and validate the first official NestJS templates in `provisionhub-official-plugins`. Broader composition, infrastructure provisioning, and opening existing projects through the TUI remain future work.
+Configuration, local declarative plugin loading, concrete file plans, and separately approved local file generation are implemented. The first official NestJS templates in `provisionhub-official-plugins` have been validated locally through generation, npm installation, build, and an HTTP request. Broader composition, infrastructure provisioning, and opening existing projects through the TUI remain future work.
 
 ProvisionHub aims to solve repeated project setup, incompatible technology choices, and fragmented integration work. For example, a future Spring Boot + PostgreSQL + Docker + GitHub Actions selection should produce one coherent project configuration, rather than four unrelated templates.
 
