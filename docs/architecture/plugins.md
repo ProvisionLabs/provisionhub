@@ -4,7 +4,7 @@
 
 ProvisionHub discovers immediate subdirectories of an explicitly supplied local plugin directory. Each plugin has a `plugin.yaml` and local source files. The loader reads only YAML and file bytes; no plugin code, shell commands, subprocesses, downloads, or scripts are run. The built-in catalog retains stable technology IDs. A plugin can attach a generator to an existing ID but cannot redefine its category or display name. A selected technology without a generator remains a valid configuration with an unavailable planning capability.
 
-The current contract is `provisionhub.dev/plugin/v1alpha1`. It supports one capability, `generate_backend`, and two file operations: `template` and `copy`. For example:
+The current contract is `provisionhub.dev/plugin/v1alpha1`. It supports `generate_backend` for backend technologies and `generate_frontend` for frontend technologies, with two file operations: `template` and `copy`. For example:
 
 ```yaml
 apiVersion: provisionhub.dev/plugin/v1alpha1
@@ -24,11 +24,11 @@ files:
     destination: .gitignore
 ```
 
-`id` and `technologyId` use 1–63 lowercase ASCII letters, digits, and hyphens, starting and ending with a letter or digit. `version` is a nonempty, at most 64-character version label using lowercase letters, digits, dots, and hyphens. The loader rejects missing or unknown fields, multiple YAML documents, duplicate plugin IDs, duplicate generators for a technology, duplicate or overlapping output paths (including case-only conflicts), unsupported categories/capabilities, and unsupported versions. Every source must be a regular file of at most 1 MiB; manifests have the same size limit.
+`id` and `technologyId` use 1–63 lowercase ASCII letters, digits, and hyphens, starting and ending with a letter or digit. `version` is a nonempty, at most 64-character version label using lowercase letters, digits, dots, and hyphens. The loader rejects missing or unknown fields, multiple YAML documents, duplicate plugin IDs, duplicate generators for a technology, duplicate or overlapping output paths within a plugin (including case-only conflicts), unsupported category/capability combinations, and unsupported versions. Planning also rejects duplicate or overlapping output paths across selected plugins. Every source must be a regular file of at most 1 MiB; manifests have the same size limit.
 
 Source and destination paths use `/`, are relative and clean, and cannot contain `..`, absolute prefixes, backslashes, colons, NUL, or empty components. `provisionhub.yaml` is reserved. Symlinked plugin entries, manifests, template paths, and output parents are rejected. The only template variable is the literal `{{projectName}}`. Its value is the validated ASCII project name from the project manifest. Other or malformed template delimiters are rejected. `copy` files are copied byte-for-byte. There is no general template interpreter or command action.
 
-The first official NestJS plugin lives in the separate `provisionhub-official-plugins` repository under `plugins/nestjs`. Supply that repository's `plugins` directory to discovery. It declares ten files under `backend/`, uses only `{{projectName}}` substitution and byte copies, and needs no core extension. A NestJS-only selection produces an executable plan; frontend and database selections still require their own generators. The plugin repository documents Node/npm requirements and its repeatable integration check. The ProvisionLabs website marketplace and plugin installation remain future work.
+Official plugins live in the separate `provisionhub-official-plugins` repository. Supply that repository's `plugins` directory to discovery. The NestJS plugin declares files under `backend/`; the Next.js plugin declares files under `frontend/`. Both use only `{{projectName}}` substitution and byte copies. A NestJS and Next.js selection can produce an executable plan when both plugins are available. Database selections still lack providers. The plugin repository documents Node/npm requirements and repeatable integration checks. The ProvisionLabs website marketplace and plugin installation remain future work.
 
 ## Discovery and planning
 

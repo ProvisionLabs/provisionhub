@@ -75,7 +75,8 @@ func BuildWithPlugins(manifest project.Manifest, technologies catalog.Catalog, l
 			operation.Dependencies = []string{"backend:" + manifest.Spec.Backend.Technology}
 			message = fmt.Sprintf("No database integration provider is registered for %s.", technology.Name)
 		}
-		if plugin, ok := loaded.ForTechnology(technology.ID); ok && technology.Category == catalog.Backend {
+		if plugin, ok := loaded.ForTechnology(technology.ID); ok &&
+			(technology.Category == catalog.Backend || technology.Category == catalog.Frontend) {
 			operation.Status = OperationSupported
 			operation.PluginID = plugin.ID
 			operation.PluginDigest = hex.EncodeToString(plugin.Digest[:])

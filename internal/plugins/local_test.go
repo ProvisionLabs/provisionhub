@@ -54,6 +54,32 @@ func TestLoadLocalPlugin(t *testing.T) {
 	}
 }
 
+func TestLoadFrontendPlugin(t *testing.T) {
+	root := t.TempDir()
+	frontend := strings.NewReplacer(
+		"official-nestjs", "official-nextjs", "technologyId: nestjs", "technologyId: nextjs",
+		"category: backend", "category: frontend", "name: NestJS", "name: Next.js",
+		"generate_backend", "generate_frontend",
+	).Replace(testPlugin)
+	writeTestPlugin(t, root, "nextjs", frontend)
+	set, err := LoadDirectory(root, catalog.Builtin())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plugin, ok := set.ForTechnology("nextjs"); !ok || plugin.Capability != "generate_frontend" {
+		t.Fatalf("frontend plugin = %+v, %v", plugin, ok)
+	}
+	for _, invalid := range []string{
+		strings.Replace(frontend, "generate_frontend", "generate_backend", 1),
+		strings.Replace(frontend, "category: frontend", "category: database", 1),
+	} {
+		writeTestPlugin(t, root, "nextjs", invalid)
+		if _, err := LoadDirectory(root, catalog.Builtin()); err == nil {
+			t.Fatal("accepted mismatched frontend capability or category")
+		}
+	}
+}
+
 func TestRejectInvalidPluginDefinitions(t *testing.T) {
 	tests := []struct{ name, manifest, content string }{
 		{"schema", strings.Replace(testPlugin, APIVersion, "old", 1), ""},

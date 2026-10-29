@@ -161,8 +161,9 @@ func parse(data []byte) (Manifest, error) {
 	if m.Name == "" || m.Description == "" {
 		return m, errors.New("plugin name and description are required")
 	}
-	if m.Category != catalog.Backend || m.Capability != "generate_backend" {
-		return m, errors.New("this plugin contract currently supports only generate_backend")
+	if (m.Category != catalog.Backend || m.Capability != "generate_backend") &&
+		(m.Category != catalog.Frontend || m.Capability != "generate_frontend") {
+		return m, errors.New("plugin category and generation capability must match backend or frontend")
 	}
 	if len(m.Files) == 0 {
 		return m, errors.New("plugin must declare at least one file")

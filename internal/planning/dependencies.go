@@ -84,6 +84,24 @@ func finalizePlan(plan Plan) Plan {
 	operations, diagnostics := orderOperations(plan.Operations)
 	plan.Operations = operations
 	plan.Diagnostics = append(plan.Diagnostics, diagnostics...)
+	fileTargets := map[string]string{}
+	for _, operation := range plan.Operations {
+		if operation.Type != GenerateFile {
+			continue
+		}
+		for _, target := range operation.TargetPaths {
+			key := strings.ToLower(target)
+			for existing, owner := range fileTargets {
+				if existing == key || strings.HasPrefix(existing, key+"/") || strings.HasPrefix(key, existing+"/") {
+					plan.Diagnostics = append(plan.Diagnostics, Diagnostic{
+						Severity: SeverityError, Code: InvalidOperation, OperationID: operation.ID,
+						Message: fmt.Sprintf("Output path %q conflicts with operation %q.", target, owner),
+					})
+				}
+			}
+			fileTargets[key] = operation.ID
+		}
+	}
 	plan.Executable = plan.Status == StatusPlanned && len(plan.Operations) > 0
 	for _, operation := range plan.Operations {
 		if operation.Status != OperationSupported {
