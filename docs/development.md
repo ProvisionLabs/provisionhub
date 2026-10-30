@@ -16,6 +16,7 @@ go run ./cmd/provisionhub version
 go run ./cmd/provisionhub --help
 go run ./cmd/provisionhub technologies list
 go run ./cmd/provisionhub project init --name my-app --path ./my-app --backend go
+go run ./cmd/provisionhub project init --from ./source.yaml --path ./multi-app
 go run ./cmd/provisionhub project plan --file ./my-app/provisionhub.yaml
 go run ./cmd/provisionhub project plan --file ./my-app/provisionhub.yaml --output json
 go run ./cmd/provisionhub project plan --file ./my-app/provisionhub.yaml --plugins ./path/to/plugins
@@ -27,12 +28,14 @@ go build ./cmd/provisionhub
 
 ## Current interface
 
-The home screen lists Create Project, Open Existing Project, Plugin Marketplace, and Settings. Create Project starts a six-step wizard: project information, backend, frontend, database, review, and result. Review offers an optional, scrollable generation-plan preview before saving. The other three screens remain explanatory placeholders.
+The home screen lists Create Project, Open Existing Project, Plugin Marketplace, and Settings. Create Project starts with project information. The default legacy flow selects backend, optional frontend/database, review, and result. Press F2 on the information screen for named-component mode: add, edit, or remove any number of components before review. Review offers an optional, scrollable generation-plan preview before saving. The other three screens remain explanatory placeholders.
 
 | Key | Action |
 | --- | --- |
 | Up/Down or `k`/`j` | Move through Home and technology choices |
 | Tab or Up/Down | Move between name and destination fields |
+| F2 on project information | Switch between legacy and named-component mode |
+| `a`, `e`, `d` on component list | Add, edit, or remove the selected component |
 | Enter | Select or advance; create the manifest on Review; return to Review from plan preview without saving |
 | `p` on Review | Open unsaved configuration preview; `p` in preview returns to Review |
 | `p` on saved result | Preview the saved project's current plan |
@@ -64,4 +67,4 @@ go build ./cmd/provisionhub
 
 CI checks formatting, vet, tests, and build on Windows, Linux, and macOS. Tests drive the Bubble Tea model directly, so they do not require an interactive terminal.
 
-The application layer validates and saves project manifests through the built-in catalog, loads local declarative plugins, and coordinates reviewed file generation. See the [manifest specification](project-manifest.md), [plugin contract](architecture/plugins.md), and [generation planning/execution guide](generation-planning.md). The official NestJS plugin repository was unavailable during this work; marketplace access, infrastructure provisioning, settings persistence, and remote execution remain future work.
+The application layer validates and saves project manifests through the built-in catalog, loads local declarative plugins, and coordinates reviewed file generation. See the [manifest specification](project-manifest.md), [component model](architecture/components.md), [plugin contract](architecture/plugins.md), and [generation planning/execution guide](generation-planning.md). Official NestJS and Next.js plugins are in the separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins); marketplace access, infrastructure provisioning, settings persistence, and remote execution remain future work.

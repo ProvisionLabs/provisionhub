@@ -1,58 +1,68 @@
 # Project manifest: `provisionhub.yaml`
 
-ProvisionHub saves the user's **desired project configuration** in a versioned YAML file. It does not record provisioned state or generate application code. The destination directory is selected by the user and is not stored in the manifest.
+The manifest records desired project composition. Its directory is the generation destination; the destination path is not stored in YAML. The current API version remains `provisionhub.dev/v1alpha1` because named components are an additive format with explicit legacy compatibility. See [ADR-0007](adr/0007-named-project-components.md).
 
-## Current schema
+## Named components
 
 ```yaml
 apiVersion: provisionhub.dev/v1alpha1
 kind: Project
 metadata:
-    name: my-application
+  name: commerce-platform
 spec:
-    backend:
-        technology: nestjs
-    frontend:
-        technology: nextjs
-    database:
-        technology: postgresql
+  components:
+    - name: api
+      type: backend
+      technology: nestjs
+    - name: billing
+      type: backend
+      technology: nestjs
+    - name: web
+      type: frontend
+      technology: nextjs
+    - name: admin
+      type: frontend
+      technology: nextjs
+  connections:
+    - from: web
+      to: api
+      type: http
 ```
 
-| Field | Rule |
+`components` requires at least one entry and permits any number of each category. Each `name` must be unique, 1–63 lowercase ASCII letters, digits, or hyphens, starting and ending with a letter or digit. Windows device names such as `con` and `lpt1` are rejected. `type` is `backend`, `frontend`, or `database`; `technology` must exist in that category in the built-in catalog. The current IDs are:
+
+| Type | Technology IDs |
 | --- | --- |
-| `apiVersion` | Required; currently only `provisionhub.dev/v1alpha1` |
-| `kind` | Required; must be `Project` |
-| `metadata.name` | Required, 1–63 characters; lowercase ASCII letters, digits, or hyphens; must start and end with a letter or digit |
-| `spec.backend.technology` | Required backend ID |
-| `spec.frontend.technology` | Optional frontend ID; omit `frontend` for None |
-| `spec.database.technology` | Optional database ID; omit `database` for None |
+| `backend` | `go`, `nestjs`, `spring-boot` |
+| `frontend` | `nextjs`, `react` |
+| `database` | `mysql`, `postgresql` |
 
-The current built-in catalog contains:
+For example, the catalog ID is `spring-boot`, not `springboot`. A valid technology selection does not guarantee a generation plugin. Current official generators cover `nestjs` and `nextjs`; selecting another technology leaves the plan non-executable. The component name gives a stable planning identity (`component/api`) and output directory (`api/`). YAML list position does not affect either.
 
-| Category | IDs |
-| --- | --- |
-| Backend | `go`, `nestjs`, `spring-boot` |
-| Frontend | `nextjs`, `react` |
-| Database | `mysql`, `postgresql` |
+`connections` is optional declarative metadata. The only accepted type is `http`; endpoints must name distinct existing components, and duplicate declarations are rejected. Connections appear in the canonical plan but do not configure clients, ports, networking, or environment variables. Neither components nor connections currently accept extra configuration fields. Unknown YAML fields and multiple documents are rejected.
 
-`None` is an absence of a selection, not a technology ID in the manifest. The CLI accepts omitted optional flags or the value `none`. Technology IDs must exist in the catalog and belong to the selected category. Catalog entries can name explicitly incompatible technology IDs, but no built-in entries currently do. A valid configuration is **not** a promise that source generation for the combination exists.
+## Legacy manifests
 
-## Validation and evolution
+Existing `v1alpha1` manifests remain valid:
 
-The YAML reader rejects malformed YAML, unknown fields, multiple documents, missing required fields, unsupported API versions, and unsupported kinds. The application layer additionally validates technology IDs and category membership when creating or loading a manifest. It does not accept arbitrary unrecognized technologies yet.
+```yaml
+apiVersion: provisionhub.dev/v1alpha1
+kind: Project
+metadata:
+  name: my-application
+spec:
+  backend:
+    technology: nestjs
+  frontend:
+    technology: nextjs
+```
 
-The `v1alpha1` version marks the current schema as subject to change. Future schema changes should use an explicit new `apiVersion` and a documented migration path; they should not silently reinterpret existing files. Local declarative plugins can supply backend generators for existing catalog IDs. Plugins cannot contribute new catalog entries yet, and a generic resolver is not implemented.
+Legacy `backend` is required; `frontend` and `database` are optional. The parser normalizes them internally to components named `backend`, `frontend`, and `database`. Legacy operation IDs, plugin output paths (`backend/` and `frontend/`), and project-name template rendering are preserved. `spec.components` or `spec.connections` cannot appear with legacy fields, even as empty or null values.
 
-Do not put credentials or secrets in the manifest. No credential fields exist in this schema.
+To migrate, replace the singleton fields with named entries. Moving `backend` to `api` changes its output directory from `backend/` to `api/`; generate into a fresh destination rather than applying over an existing project. A frontend-only *named-component* project is valid, although legacy format still requires a backend.
 
-## Local file behavior
+## Validation and persistence
 
-`project init` and the TUI create the destination directory if needed, write a complete temporary file there, and publish it without replacing an existing `provisionhub.yaml`. A conflict or filesystem error is reported to the caller. Existing manifests can be parsed and validated by the Go application service; the **Open Existing Project** TUI screen remains a placeholder.
+The parser rejects malformed YAML, unknown fields, unsupported version/kind, unsafe or duplicate names, invalid connection references, and mixed formats. The application validates catalog IDs/categories and explicit catalog incompatibilities. Serialization sorts components and connections by stable names/fields. `project init` and the TUI publish a complete manifest without overwriting an existing one. No credentials or secrets belong in the current schema.
 
-## Read-only planning
-
-`provisionhub project plan --file <manifest> [--output json]` reads this same schema without changing the file or inspecting/creating a generation destination. The TUI can preview unsaved Review selections through the same application planning service. Planning reuses structural, ID/category, and explicit compatibility validation; it does not relax manifest rules or require a schema change.
-
-A valid manifest can produce a `planned` conceptual plan while capabilities without a local generator remain `unavailable`. A matching declarative plugin can add supported file operations; the plan is executable only when every selected capability is supported. Unknown IDs, wrong categories, explicit conflicts, and invalid manifests produce error diagnostics rather than supported operations. A successfully constructed unsupported plan exits `0`; input/loading/validation/planning/output failures exit `1`. See [generation planning](generation-planning.md) for the domain and JSON fields, diagnostic codes, approval, and execution safety.
-
-See the [development guide](development.md) for commands and the [architecture](architecture/architecture.md) for package boundaries.
+See [component architecture](architecture/components.md), [planning and execution](generation-planning.md), and [CLI/TUI usage](development.md).

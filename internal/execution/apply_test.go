@@ -238,3 +238,29 @@ func TestApplyAllowsCanonicalizedAncestorButRejectsDestinationSymlink(t *testing
 		t.Fatal("wrote through destination symlink")
 	}
 }
+
+func TestNamedComponentRejectsSymlinkedOutputDirectory(t *testing.T) {
+	_, _, _, set, _ := fixture(t)
+	destination := filepath.Join(t.TempDir(), "named")
+	manifest := project.Manifest{APIVersion: project.APIVersion, Kind: project.Kind,
+		Metadata: project.Metadata{Name: "named"}, Spec: project.Spec{Components: []project.Component{
+			{Name: "api", Type: "backend", Technology: "nestjs"},
+		}}}
+	if _, err := project.Save(destination, manifest); err != nil {
+		t.Fatal(err)
+	}
+	plan := planning.BuildWithPlugins(manifest, catalog.Builtin(), set)
+	if !plan.Executable {
+		t.Fatalf("plan unavailable: %+v", plan)
+	}
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(destination, "api")); err != nil {
+		t.Skipf("directory symlinks unavailable: %v", err)
+	}
+	if _, err := Apply(plan, manifest, set, destination); err == nil {
+		t.Fatal("accepted symlinked component directory")
+	}
+	if entries, err := os.ReadDir(outside); err != nil || len(entries) != 0 {
+		t.Fatalf("wrote outside destination: %v, %v", entries, err)
+	}
+}

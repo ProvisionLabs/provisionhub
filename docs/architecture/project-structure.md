@@ -17,7 +17,7 @@ internal/
   execution/apply.go
   project/manifest.go, storage.go
   cli/root.go, version.go, project.go, technologies.go, plan.go, apply.go
-  tui/app.go, navigation.go, wizard.go, plan.go
+  tui/app.go, navigation.go, wizard.go, components_wizard.go, plan.go
 .github/workflows/ci.yml
 docs/
   overview.md
@@ -27,10 +27,11 @@ docs/
   project-manifest.md
   architecture/
     architecture.md
+    components.md
     project-structure.md
     plugins.md
   adr/
-    0001-go-monorepo.md ... 0006-declarative-local-generation.md
+    0001-go-monorepo.md ... 0007-named-project-components.md
     template.md
 LICENSE
 ```
