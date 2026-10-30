@@ -34,11 +34,12 @@ type TechnologySelection struct {
 }
 
 type Spec struct {
-	Backend     *TechnologySelection `yaml:"backend,omitempty"`
-	Frontend    *TechnologySelection `yaml:"frontend,omitempty"`
-	Database    *TechnologySelection `yaml:"database,omitempty"`
-	Components  []Component          `yaml:"components,omitempty"`
-	Connections []Connection         `yaml:"connections,omitempty"`
+	Backend         *TechnologySelection `yaml:"backend,omitempty"`
+	Frontend        *TechnologySelection `yaml:"frontend,omitempty"`
+	Database        *TechnologySelection `yaml:"database,omitempty"`
+	Components      []Component          `yaml:"components,omitempty"`
+	Connections     []Connection         `yaml:"connections,omitempty"`
+	componentSyntax bool
 }
 
 // Component is one named instance of a catalog technology. Legacy is internal
@@ -58,7 +59,9 @@ type Connection struct {
 	Type string `yaml:"type" json:"type"`
 }
 
-func (s Spec) usesComponents() bool { return s.Components != nil || s.Connections != nil }
+func (s Spec) usesComponents() bool {
+	return s.componentSyntax || s.Components != nil || s.Connections != nil
+}
 
 func (m Manifest) UsesComponents() bool { return m.Spec.usesComponents() }
 
@@ -205,6 +208,24 @@ func Unmarshal(data []byte) (Manifest, error) {
 			return Manifest{}, fmt.Errorf("decode manifest: %w", err)
 		}
 		return Manifest{}, errors.New("manifest must contain exactly one YAML document")
+	}
+	var syntax yaml.Node
+	if err := yaml.Unmarshal(data, &syntax); err != nil {
+		return Manifest{}, fmt.Errorf("decode manifest: %w", err)
+	}
+	if len(syntax.Content) > 0 {
+		root := syntax.Content[0]
+		for i := 0; i+1 < len(root.Content); i += 2 {
+			if root.Content[i].Value != "spec" {
+				continue
+			}
+			spec := root.Content[i+1]
+			for j := 0; j+1 < len(spec.Content); j += 2 {
+				if spec.Content[j].Value == "components" || spec.Content[j].Value == "connections" {
+					m.Spec.componentSyntax = true
+				}
+			}
+		}
 	}
 	if err := m.Validate(); err != nil {
 		return Manifest{}, err

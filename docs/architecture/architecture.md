@@ -2,7 +2,7 @@
 
 ## Status
 
-This describes the **target architecture** and identifies what exists today. The repository has a CLI, TUI project configuration wizard, built-in catalog, versioned project manifest, shared services, deterministic planning, local declarative plugin loading, and separately approved file generation. Config and registry behavior remain future work. The official NestJS plugin repository was unavailable during this implementation. The earlier control-plane, queue, and worker diagram was retired with the local-first decision in [ADR-0003](../adr/0003-local-first-provisioning.md).
+This describes the **target architecture** and identifies what exists today. The repository has a CLI, TUI project configuration wizard, built-in catalog, versioned project manifest with named components, shared services, deterministic planning, local declarative plugin loading, and separately approved file generation. Config and registry behavior remain future work. Official NestJS and Next.js plugins live in the separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins). The earlier control-plane, queue, and worker diagram was retired with the local-first decision in [ADR-0003](../adr/0003-local-first-provisioning.md).
 
 ## Runtime shape
 
@@ -35,7 +35,7 @@ One local process is the default. TUI and CLI are adapters into the same applica
 | Registry (future) | Catalog metadata retrieval and local catalog management | A required network dependency |
 | External boundary | Filesystem, subprocesses, source-control services, cloud APIs | Application-level orchestration |
 
-CLI, TUI, application, catalog, project, planning, plugins, and execution packages now exist. The catalog holds stable technology definitions. The project package owns manifest YAML and persistence; application services coordinate saving, planning, preflight, and explicit apply. `internal/planning` remains pure, `internal/plugins` validates local declarative generators, and `internal/execution` publishes reviewed files without overwrite. Broader composition, plugin installation, config, and registry remain future boundaries. See [project structure](project-structure.md), the [manifest specification](../project-manifest.md), and [generation planning](../generation-planning.md).
+CLI, TUI, application, catalog, project, planning, plugins, and execution packages now exist. The catalog holds stable technology definitions. The project package owns manifest YAML, canonical components, and persistence; application services coordinate saving, planning, preflight, and explicit apply. `internal/planning` remains pure, `internal/plugins` validates local declarative generators, and `internal/execution` publishes reviewed files without overwrite. Connection execution, plugin installation, config, and registry remain future boundaries. See [named components](components.md), the [manifest specification](../project-manifest.md), and [generation planning](../generation-planning.md).
 
 ## Planned flow
 

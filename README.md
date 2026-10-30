@@ -4,13 +4,13 @@ ProvisionHub is an open-source, TUI-first developer provisioning tool for indivi
 
 The terminal interface guides project configuration, manifest creation, and generation-plan review. Local declarative plugins can contribute concrete file operations; execution requires a separate approval. Non-interactive CLI commands use the same application service as the TUI. The core runs locally without a control plane, database server, message broker, distributed workers, Kubernetes cluster, or persistent backend.
 
-Plugins are intended to provide templates, technology integrations, and provisioning operations. The initial local contract supports declarative backend file generation only. Official plugins belong in the separate `provisionhub-official-plugins` repository. A searchable marketplace on the ProvisionLabs website remains future work.
+Plugins are intended to provide templates, technology integrations, and provisioning operations. The local contract supports declarative backend and frontend file generation. Official plugins belong in the separate `provisionhub-official-plugins` repository. A searchable marketplace on the ProvisionLabs website remains future work.
 
 ## Current status
 
-Running `provisionhub` opens a TUI with a functional **Create Project** wizard. It collects a name and destination, lets you select a backend and optional frontend/database, reviews the choices, optionally previews a generation plan, and saves `provisionhub.yaml` only on explicit confirmation. The CLI can create the same manifest without a terminal, list built-in technologies, and preview a saved manifest as text or JSON. `version` and `--help` remain available.
+Running `provisionhub` opens a TUI with a functional **Create Project** wizard. It collects a name and destination, supports legacy backend/frontend/database choices or multiple named components, reviews the choices, optionally previews a generation plan, and saves `provisionhub.yaml` only on explicit confirmation. The CLI can create either manifest format without a terminal, list built-in technologies, and preview a saved manifest as text or JSON. `version` and `--help` remain available.
 
-Open Existing Project, Plugin Marketplace, and Settings remain explanatory screens. The built-in catalog defines valid **configuration choices**; a matching local plugin is required for generation. Without plugins, plans retain unavailable-capability diagnostics. The first official NestJS generator lives in the separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins/tree/main/plugins/nestjs). Infrastructure provisioning, CI/CD generation, plugin installation, and settings persistence are not implemented.
+Open Existing Project, Plugin Marketplace, and Settings remain explanatory screens. The built-in catalog defines valid **configuration choices**; a matching local plugin is required for generation. Without plugins, plans retain unavailable-capability diagnostics. Official NestJS and Next.js generators live in the separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins). Infrastructure provisioning, CI/CD generation, plugin installation, and settings persistence are not implemented.
 
 ## Build and run
 
@@ -35,6 +35,8 @@ CLI plan/apply commands continue to use the explicit `--plugins` flag.
 
 From Home, choose **Create Project**. Enter a lowercase project name and destination, choose a backend, optionally choose a frontend and database, then review and confirm. The result screen appears only after `provisionhub.yaml` has been saved. An existing manifest is never overwritten.
 
+Press F2 on project information to choose named-component mode. There, `a` adds a component, `e` edits the selected component, and `d` removes it. Multiple components may use the same technology. The manifest stays at the project root as the `plan`/`apply` anchor; generated applications live in isolated component directories.
+
 The equivalent non-interactive command is:
 
 ```sh
@@ -42,7 +44,7 @@ provisionhub project init --name my-application --path ./my-application --backen
 provisionhub technologies list
 ```
 
-`--name`, `--path`, and `--backend` are required. Omit `--frontend` or `--database`, or pass `none`, to leave them out of the manifest. On Home and technology screens, use Up/Down or `j`/`k` to navigate and Enter to select. On the information screen, `j`, `k`, and `q` are normal text input; Tab or Up/Down changes fields. Esc goes back and Ctrl+C quits. `q` quits outside text input. The TUI has a compact layout for small terminals.
+For legacy flags, `--name`, `--path`, and `--backend` are required. Omit `--frontend` or `--database`, or pass `none`, to leave them out of the manifest. For complex projects, author a [named-component manifest](docs/project-manifest.md), then run `provisionhub project init --from ./source.yaml --path ./my-application`. `--from` cannot be combined with legacy technology flags. On Home and technology screens, use Up/Down or `j`/`k` to navigate and Enter to select. On text fields, `j`, `k`, and `q` are normal input. Esc goes back and Ctrl+C quits. The TUI has a compact layout for small terminals.
 
 See the [manifest specification](docs/project-manifest.md) for the schema, built-in IDs, and validation rules. This command **saves desired configuration only**; it does not generate application code.
 
@@ -88,9 +90,31 @@ separately from `../sample-web/backend` after its own `npm install` and
 `npm run build`. NestJS requires Node.js 24.15+. Choose another `PORT` if running
 both applications at once. Database generation remains unavailable.
 
+For two backends and two frontends, save this configuration as `source.yaml`:
+
+```yaml
+apiVersion: provisionhub.dev/v1alpha1
+kind: Project
+metadata: {name: commerce-platform}
+spec:
+  components:
+    - {name: api, type: backend, technology: nestjs}
+    - {name: billing, type: backend, technology: nestjs}
+    - {name: web, type: frontend, technology: nextjs}
+    - {name: admin, type: frontend, technology: nextjs}
+```
+
+```sh
+provisionhub project init --from ./source.yaml --path ../commerce-platform
+provisionhub project plan --file ../commerce-platform/provisionhub.yaml --plugins ../provisionhub-official-plugins/plugins
+provisionhub project apply --file ../commerce-platform/provisionhub.yaml --plugins ../provisionhub-official-plugins/plugins
+```
+
+The plan lists `component/api`, `component/billing`, `component/web`, and `component/admin`; approved generation writes each application to its own directory.
+
 ## Direction
 
-Configuration, local declarative plugin loading, concrete file plans, and separately approved local file generation are implemented. Official NestJS and Next.js templates in `provisionhub-official-plugins` have been validated locally through combined generation, npm installation, builds, and HTTP requests. Broader composition, infrastructure provisioning, and opening existing projects through the TUI remain future work.
+Named-component composition, local declarative plugin loading, concrete file plans, and separately approved local file generation are implemented. Official NestJS and Next.js templates in `provisionhub-official-plugins` have been validated locally through four-component generation and npm builds, plus legacy HTTP requests. Connection execution, infrastructure provisioning, and opening existing projects through the TUI remain future work.
 
 ProvisionHub aims to solve repeated project setup, incompatible technology choices, and fragmented integration work. For example, a future Spring Boot + PostgreSQL + Docker + GitHub Actions selection should produce one coherent project configuration, rather than four unrelated templates.
 
@@ -98,6 +122,7 @@ ProvisionHub aims to solve repeated project setup, incompatible technology choic
 
 - [Product overview](docs/overview.md)
 - [Architecture and boundaries](docs/architecture/architecture.md)
+- [Named component model](docs/architecture/components.md)
 - [Planned project structure](docs/architecture/project-structure.md)
 - [Plugin architecture](docs/architecture/plugins.md)
 - [Decision records](docs/adr/)

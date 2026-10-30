@@ -69,6 +69,8 @@ func TestUnmarshalRejectsInvalidDocuments(t *testing.T) {
 		{"multiple documents", string(valid) + "---\nkind: Project\n", "exactly one"},
 		{"empty", "", "manifest is empty"},
 		{"missing backend", "apiVersion: provisionhub.dev/v1alpha1\nkind: Project\nmetadata:\n  name: demo\nspec: {}\n", "spec.backend.technology"},
+		{"null components", "apiVersion: provisionhub.dev/v1alpha1\nkind: Project\nmetadata: {name: demo}\nspec: {components: null}\n", "spec.components must contain"},
+		{"null components mixed with backend", "apiVersion: provisionhub.dev/v1alpha1\nkind: Project\nmetadata: {name: demo}\nspec: {backend: {technology: nestjs}, components: null}\n", "cannot be mixed"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := Unmarshal([]byte(test.yaml))
@@ -80,7 +82,7 @@ func TestUnmarshalRejectsInvalidDocuments(t *testing.T) {
 }
 
 func TestValidateName(t *testing.T) {
-	for _, name := range []string{"", "Upper", "contains space", "-leading", "trailing-", strings.Repeat("a", 64)} {
+	for _, name := range []string{"", "Upper", "contains space", "-leading", "trailing-", "con", "lpt1", strings.Repeat("a", 64)} {
 		if err := ValidateName(name); err == nil {
 			t.Errorf("accepted invalid name %q", name)
 		}
@@ -93,13 +95,19 @@ func TestValidateName(t *testing.T) {
 }
 
 func TestComponentManifestAndDeterministicSerialization(t *testing.T) {
+	frontendOnly := Manifest{APIVersion: APIVersion, Kind: Kind, Metadata: Metadata{Name: "web-only"}, Spec: Spec{
+		Components: []Component{{Name: "web", Type: "frontend", Technology: "nextjs"}},
+	}}
+	if err := frontendOnly.Validate(); err != nil {
+		t.Fatalf("frontend-only named project rejected: %v", err)
+	}
 	manifest := Manifest{APIVersion: APIVersion, Kind: Kind, Metadata: Metadata{Name: "commerce-platform"}, Spec: Spec{
 		Components: []Component{
 			{Name: "web", Type: "frontend", Technology: "nextjs"},
 			{Name: "billing", Type: "backend", Technology: "nestjs"},
 			{Name: "api", Type: "backend", Technology: "nestjs"},
 		},
-		Connections: []Connection{{From: "web", To: "api", Type: "http"}},
+		Connections: []Connection{{From: "web", To: "api", Type: "http"}, {From: "api", To: "web", Type: "http"}},
 	}}
 	data, err := Marshal(manifest)
 	if err != nil {
@@ -110,6 +118,7 @@ func TestComponentManifestAndDeterministicSerialization(t *testing.T) {
 	}
 	again := manifest
 	again.Spec.Components = []Component{manifest.Spec.Components[2], manifest.Spec.Components[0], manifest.Spec.Components[1]}
+	again.Spec.Connections = []Connection{manifest.Spec.Connections[1], manifest.Spec.Connections[0]}
 	encoded, err := Marshal(again)
 	if err != nil || string(encoded) != string(data) {
 		t.Fatalf("reordered YAML differs: %v\n%s", err, encoded)

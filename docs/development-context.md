@@ -1,52 +1,36 @@
 # ProvisionHub development context
 
-This is an onboarding snapshot checked against the source through the streamlined TUI generation flow of October 30, 2026. The repository source, [README](../README.md), specifications, and accepted ADRs take precedence over this summary. Check Git state and tests before relying on a remote branch or release claim.
+Checked against the source on October 30, 2026. Repository code and tests take precedence over this summary. Read [AGENTS.md](../AGENTS.md) and inspect current Git state before work.
 
-## Product and history
+## Product and decisions
 
-ProvisionHub is a TUI-first, local-first developer provisioning tool for individuals and small teams. Its goal is to compose technologies into coherent application configurations, then eventually generate and provision them through plugins. The original IDP architecture assumed a control plane, queue, workers, and mandatory gRPC plugin boundary. [ADR-0001](adr/0001-go-monorepo.md) and [ADR-0002](adr/0002-grpc-plugin-contract.md) preserve that history. [ADR-0003](adr/0003-local-first-provisioning.md), [ADR-0004](adr/0004-tui-and-cli.md), and [ADR-0005](adr/0005-plugin-composition.md) establish the current local process, shared application services, and plugin composition direction. [ADR-0006](adr/0006-declarative-local-generation.md) records the first limited file-generation contract.
+ProvisionHub is a local-first TUI and CLI for composing and generating applications. [ADR-0003](adr/0003-local-first-provisioning.md) retired the original required control plane and queue; [ADR-0005](adr/0005-plugin-composition.md) established technology/plugin composition; [ADR-0006](adr/0006-declarative-local-generation.md) introduced safe local file generation. [ADR-0007](adr/0007-named-project-components.md) introduces named component instances and preserves legacy manifests. Historical ADRs remain unchanged.
 
-The ProvisionLabs ecosystem assigns the Go tool, CLI/TUI, catalog, planning, and execution to `ProvisionLabs/provisionhub`; official templates belong in the separate `provisionhub-official-plugins` repository. A ProvisionLabs website marketplace remains planned. That repository contains official declarative NestJS and Next.js generators under `plugins/nestjs` and `plugins/nextjs`, alongside the preserved experimental `keycloak-go` plugin. The Next.js integration uses the same local file contract with a matching frontend capability.
+The Go repository owns catalog definitions, manifest parsing, application services, planning, execution, CLI, and TUI. The separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins) owns the NestJS and Next.js declarative generators. No plugin recompilation, downloaded runtime, or arbitrary execution hook is required.
 
-## Implemented structure
+## Implemented boundaries
 
-| Path | Current responsibility |
+| Path | Responsibility |
 | --- | --- |
-| [cmd/provisionhub](../cmd/provisionhub/) | Executable entry point and process errors |
-| [internal/cli](../internal/cli/) | Cobra commands, flags, text/JSON output, interactive or `--yes` approval |
-| [internal/tui](../internal/tui/) | Bubble Tea navigation, wizard, preview, confirmation, result display |
-| [internal/application](../internal/application/) | Shared project creation, validation, planning, freshness checks, and apply coordination |
-| [internal/catalog](../internal/catalog/) | Stable built-in IDs and category/explicit-conflict validation |
-| [internal/project](../internal/project/) | Versioned desired-state YAML and no-overwrite manifest persistence |
-| [internal/plugins](../internal/plugins/) | Versioned local YAML discovery and validation; no code execution |
-| [internal/planning](../internal/planning/) | Pure conceptual/concrete operations, ordering, support and diagnostics |
-| [internal/execution](../internal/execution/) | Root-confined staged file generation and no-overwrite publication |
+| [internal/project](../internal/project/) | Strict `v1alpha1` YAML, canonical named/legacy components, connection metadata, safe manifest persistence |
+| [internal/catalog](../internal/catalog/) | Stable technology IDs and category/conflict validation |
+| [internal/plugins](../internal/plugins/) | Local declarative plugin discovery, template/path validation, component output rebasing |
+| [internal/planning](../internal/planning/) | Pure deterministic component-owned operations, graph ordering, diagnostics, executability |
+| [internal/execution](../internal/execution/) | Reviewed, root-confined staging and no-overwrite file publication |
+| [internal/application](../internal/application/) | Shared validation, project creation, plan freshness, and apply coordination |
+| [internal/cli](../internal/cli/) | Cobra commands, text/JSON plans, terminal or `--yes` approval |
+| [internal/tui](../internal/tui/) | Bubble Tea navigation, legacy and named-component wizard, preview, explicit generation |
 
-The interfaces share `application.ProjectService`. The planner never writes or runs commands. Plugin files are read and validated at the application/plugin boundary; the executor is a separate, approved path. [Project structure](architecture/project-structure.md) and [architecture](architecture/architecture.md) describe package boundaries. Exact Go and dependency versions are in [go.mod](../go.mod); CI is [.github/workflows/ci.yml](../.github/workflows/ci.yml).
+## User behavior
 
-## User-visible behavior
+`provisionhub project init --name demo --path ./demo --backend nestjs` remains the simple legacy flow. A complex project can use `project init --from ./source.yaml --path ./demo`. Both formats use `project plan --file ... --plugins ...` and `project apply --file ... --plugins ...`; apply requires explicit approval. The TUI defaults to the legacy wizard. F2 on project information selects named-component mode, where `a`, `e`, and `d` add, edit, and remove instances. Review `p` shows the read-only plan; Enter on **Generate Project** creates the manifest and generated files. The result screen offers a fresh preview and confirmed retry if generation fails after the manifest is saved.
 
-| Entry point | Behavior |
-| --- | --- |
-| `provisionhub` | TUI home and six-step Create Project wizard |
-| `provisionhub project init --name demo --path ./demo --backend nestjs` | Validate and save `provisionhub.yaml`; no source generation |
-| `provisionhub technologies list` | Print stable built-in catalog entries |
-| `provisionhub project plan --file ./demo/provisionhub.yaml [--plugins ./plugins] [--output json]` | Read-only plan preview; concrete operations if a matching local plugin exists |
-| `provisionhub project apply --file ./demo/provisionhub.yaml --plugins ./plugins [--yes]` | Preview, preflight, require explicit approval, then generate declared files without overwrites |
-| `provisionhub version`, `provisionhub --help` | Metadata and command help without a TUI |
+The manifest remains at the destination root, anchoring plan/apply. Named components generate below their names (`api/`, `billing/`, `web/`); legacy manifests retain `backend/` and `frontend/` outputs. `{{componentName}}` is the instance name for named projects and the project name for legacy projects. The same plugin definition serves repeated instances. Optional `http` connections are validated and serialized but do not wire applications together. A catalog technology without a generator makes the plan non-executable.
 
-The TUI's Review `p` previews unsaved configuration without writing. With an executable plan, Review shows **Generate Project**; Enter saves the manifest and generates declared files in one approved action. An unavailable plan shows **Save Manifest Only**. If generation fails after manifest publication, the result screen reports the error and offers a fresh `p` preview and `g` → `y` confirmed retry. `PROVISIONHUB_PLUGINS` supplies the local plugin directory. When unset or empty, the TUI uses a `plugins` directory beside its executable if present, enabling portable builds without environment setup. CLI commands still require `--plugins`. Text fields treat `p`, `q`, `j`, and `k` as ordinary characters. Open Existing Project, Plugin Marketplace, and Settings remain explanatory screens.
+Planning does not render, write, install dependencies, or execute commands. Execution rebuilds and compares the reviewed plan, checks the destination and target paths, stages complete files, and uses no-overwrite hard links. It rejects path traversal, symlinked output parents, and collisions. Multi-file publication is not fully transactional after a process crash or hostile concurrent filesystem change.
 
-The [project manifest](project-manifest.md) is `provisionhub.dev/v1alpha1`, `kind: Project`, with a portable lowercase name, required backend, and optional frontend/database. Built-in backend IDs are `go`, `nestjs`, `spring-boot`; frontend IDs are `nextjs`, `react`; database IDs are `mysql`, `postgresql`. Catalog membership means a valid choice, not generation support. The manifest stores desired configuration and no credentials or destination path. Saving a manifest creates a complete temporary file and publishes it with a no-overwrite hard link.
+## Validation and limits
 
-The [plugin contract](architecture/plugins.md) is `provisionhub.dev/plugin/v1alpha1`, supporting local declarative backend and frontend file templates and copies. Only literal `{{projectName}}` substitution is supported. Missing generators remain warnings in a planned, non-executable plan. Mixed selections with unsupported capabilities cannot be applied. Planning rejects conflicting output paths across selected plugins. The [planning/execution guide](generation-planning.md) defines operation IDs, JSON fields, diagnostics, CLI/TUI approval, freshness revalidation, and filesystem guarantees.
+Core validation: `go fmt ./...`, `go vet ./...`, `go test -count=1 ./...`, and `go build ./cmd/provisionhub`. Core CI runs on Windows, Linux, and macOS. With `PROVISIONHUB_BIN` set to an absolute core executable, the official plugin repository runs `node --test tests/nestjs.test.mjs tests/nextjs.test.mjs tests/components.test.mjs`. Local Windows validation generated and built two NestJS and two Next.js components; the legacy tests also started each app and verified HTTP responses. Cross-OS Node runtime validation is not claimed.
 
-## Limits and next work
-
-The official NestJS plugin generates a NestJS 12 / TypeScript 6 backend under `backend/`, requiring Node.js 24.15+. The official Next.js plugin generates a Next.js 16 / React 19 / Tailwind CSS 4 frontend under `frontend/`. Local Windows integration tests used the actual CLI in temporary directories and passed combined generation, npm install/build, and HTTP endpoint checks for both applications. Core TUI model tests cover combined preview, cancellation, and explicit confirmation. Cross-OS plugin runtime results are not claimed. A broader technology resolver, database generators, plugin installation or marketplace, arbitrary plugin code execution, cloud/infrastructure provisioning, settings persistence, and remote execution are absent. The executor performs no commands and does not install dependencies. Multi-file publication is not a transaction: a crash or concurrent filesystem change can leave partial output despite best-effort cleanup. See [ADR-0006](adr/0006-declarative-local-generation.md).
-
-Run the plugin repository's `node --test tests/nestjs.test.mjs tests/nextjs.test.mjs` with `PROVISIONHUB_BIN` set to an absolute core executable path to repeat integration validation. Next, add cross-OS plugin runtime validation and pursue database composition only from a concrete integration need, keeping optional remote distribution separate from local use.
-
-## Working conventions
-
-Read [AGENTS.md](../AGENTS.md) and the [development guide](development.md). Before changes, inspect status, branch, recent commits, source, tests, and relevant ADRs. Use small Conventional Commits with explicit staging, validate Go changes with `go fmt ./...`, `go vet ./...`, `go test ./...`, and `go build ./cmd/provisionhub`, and do not claim tests or cross-OS runtime validation that was not performed. Preserve unrelated work and do not push without explicit authorization.
+Database generation, connection execution, auth, infrastructure/cloud provisioning, plugin marketplace/installation, existing-project TUI editing, and shell-command plugins remain out of scope. See the [manifest specification](project-manifest.md), [component architecture](architecture/components.md), [plugin contract](architecture/plugins.md), and [planning/execution guide](generation-planning.md).
