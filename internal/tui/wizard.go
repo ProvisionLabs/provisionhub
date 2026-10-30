@@ -25,8 +25,9 @@ const (
 )
 
 type projectCreatedMsg struct {
-	result application.CreateProjectResult
-	err    error
+	result  application.CreateProjectResult
+	applied execution.Result
+	err     error
 }
 
 type projectAppliedMsg struct {
@@ -222,9 +223,14 @@ func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService)
 			w.selected[index] = (w.selected[index] + 1) % w.optionCount(service)
 		case "enter":
 			if w.step == databaseStep {
-				if _, _, err := service.ValidateInput(w.input(service)); err != nil {
+				manifest, _, err := service.ValidateInput(w.input(service))
+				if err != nil {
 					w.err = err.Error()
 					return nil, false
+				}
+				w.plan, err = service.PlanManifest(manifest)
+				if err != nil {
+					w.err = err.Error()
 				}
 			}
 			w.step++
@@ -250,6 +256,14 @@ func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService)
 			if _, _, err := service.ValidateInput(input); err != nil {
 				w.err = err.Error()
 				return nil, false
+			}
+			if w.plan.Executable {
+				w.applying = true
+				plan := w.plan
+				return func() tea.Msg {
+					created, applied, err := service.CreateAndApplyProject(input, plan)
+					return projectCreatedMsg{result: created, applied: applied, err: err}
+				}, false
 			}
 			w.saving = true
 			return func() tea.Msg {
@@ -287,13 +301,21 @@ func (w *wizard) applied(msg projectAppliedMsg) {
 
 func (w *wizard) created(msg projectCreatedMsg) {
 	w.saving = false
+	w.applying = false
+	if msg.result.ManifestPath == "" {
+		if msg.err != nil {
+			w.err = msg.err.Error()
+		}
+		return
+	}
+	w.result = msg.result
+	w.applyResult = msg.applied
+	w.step = resultStep
 	if msg.err != nil {
 		w.err = msg.err.Error()
 		return
 	}
-	w.result = msg.result
 	w.err = ""
-	w.step = resultStep
 }
 
 func (w *wizard) lines(service application.ProjectService, contentWidth int) []string {
@@ -339,7 +361,13 @@ func (w *wizard) lines(service application.ProjectService, contentWidth int) []s
 			"Database:     "+service.TechnologyName(input.Database),
 		)
 		if w.step == resultStep {
-			lines = append(lines, "", selected.Render("Manifest created successfully"), "Manifest: "+fitTail(w.result.ManifestPath, contentWidth-len("Manifest: ")))
+			status := "Manifest created successfully"
+			if len(w.applyResult.Created) > 0 {
+				status = "Project generated successfully"
+			} else if w.err != "" {
+				status = "Manifest saved; generation incomplete"
+			}
+			lines = append(lines, "", selected.Render(status), "Manifest: "+fitTail(w.result.ManifestPath, contentWidth-len("Manifest: ")))
 			if len(w.applyResult.Created) > 0 {
 				lines = append(lines, "", selected.Render(fmt.Sprintf("Generated %d project files", len(w.applyResult.Created))))
 			} else if w.applying {
@@ -347,10 +375,23 @@ func (w *wizard) lines(service application.ProjectService, contentWidth int) []s
 			} else {
 				lines = append(lines, "", "Press p to review generation (local plugins required)")
 			}
+		} else if w.applying {
+			lines = append(lines, "", "Generating project files...")
 		} else if w.saving {
 			lines = append(lines, "", "Creating manifest...")
 		} else {
-			lines = append(lines, "", selected.Render("[ Create Manifest ]"))
+			lines = append(lines, "", selected.Render("[ "+w.reviewAction()+" ]"))
+			if w.plan.Executable {
+				files := 0
+				for _, operation := range w.plan.Operations {
+					if operation.Type == planning.GenerateFile {
+						files++
+					}
+				}
+				lines = append(lines, fmt.Sprintf("Creates manifest and %d project files; press p for the full plan", files))
+			} else {
+				lines = append(lines, "Generation unavailable for this selection; manifest only")
+			}
 		}
 	}
 	if w.err != "" {
@@ -387,8 +428,18 @@ func (w *wizard) stepTitle() string {
 	case reviewStep:
 		return "Review configuration"
 	default:
+		if len(w.applyResult.Created) > 0 {
+			return "Project generated"
+		}
 		return "Manifest created"
 	}
+}
+
+func (w *wizard) reviewAction() string {
+	if w.plan.Executable {
+		return "Generate Project"
+	}
+	return "Save Manifest Only"
 }
 
 func (w *wizard) footer() string {
@@ -398,7 +449,7 @@ func (w *wizard) footer() string {
 	case backendStep, frontendStep, databaseStep:
 		return "↑↓/jk choose · enter select · esc back · q quit"
 	case reviewStep:
-		return "p plan · enter create · esc back · q quit"
+		return "p plan · enter " + strings.ToLower(w.reviewAction()) + " · esc back · q quit"
 	default:
 		return "p plan · enter/esc home · q quit"
 	}
@@ -426,6 +477,8 @@ func (w *wizard) compactLines(service application.ProjectService) []string {
 			if len(w.applyResult.Created) > 0 {
 				lines = append(lines, fmt.Sprintf("Generated %d files", len(w.applyResult.Created)))
 			}
+		} else {
+			lines = append(lines, w.reviewAction())
 		}
 	}
 	if w.err != "" {

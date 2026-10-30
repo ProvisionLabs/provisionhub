@@ -45,14 +45,16 @@ func TestPortablePluginDirectoryEnablesGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	savedGeneratorWizard(t, m, destination)
-	press(m, 'p', "p")
+	reviewGeneratorWizard(t, m, destination)
 	if !m.wizard.plan.Executable {
 		t.Fatal("portable plugin did not produce an executable plan")
 	}
-	press(m, 'g', "g")
-	if !m.wizard.confirm {
-		t.Fatal("portable generation did not request approval")
+	cmd := press(m, tea.KeyEnter, "")
+	if cmd == nil || !m.wizard.applying {
+		t.Fatal("portable generation did not start from review")
 	}
-	press(m, tea.KeyEscape, "")
+	m.Update(cmd())
+	if len(m.wizard.applyResult.Created) != 1 {
+		t.Fatal("portable generation did not create the declared file")
+	}
 }

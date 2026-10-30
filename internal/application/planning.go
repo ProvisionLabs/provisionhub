@@ -64,6 +64,30 @@ func (s ProjectService) ApplyProject(file string, reviewed planning.Plan) (execu
 	return execution.Apply(reviewed, manifest, loaded, filepath.Dir(file))
 }
 
+// CreateAndApplyProject performs the TUI's approved new-project action. It
+// checks the reviewed plan again before creating the manifest; ApplyProject
+// repeats freshness and destination checks before publishing generated files.
+// If generation fails after manifest creation, the saved manifest is returned.
+func (s ProjectService) CreateAndApplyProject(input CreateProjectInput, reviewed planning.Plan) (CreateProjectResult, execution.Result, error) {
+	manifest, _, err := s.ValidateInput(input)
+	if err != nil {
+		return CreateProjectResult{}, execution.Result{}, err
+	}
+	fresh, err := s.PlanManifest(manifest)
+	if err != nil {
+		return CreateProjectResult{}, execution.Result{}, err
+	}
+	if !fresh.Executable || !reflect.DeepEqual(reviewed, fresh) {
+		return CreateProjectResult{}, execution.Result{}, fmt.Errorf("generation plan changed or is unavailable; review a new plan before applying")
+	}
+	created, err := s.CreateProject(input)
+	if err != nil {
+		return CreateProjectResult{}, execution.Result{}, err
+	}
+	applied, err := s.ApplyProject(created.ManifestPath, reviewed)
+	return created, applied, err
+}
+
 func (s ProjectService) freshInputs(file string, reviewed planning.Plan) (project.Manifest, plugins.Set, error) {
 	manifest, err := s.LoadProject(file)
 	if err != nil {
