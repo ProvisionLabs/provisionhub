@@ -1,6 +1,6 @@
 # ProvisionHub development context
 
-This is an onboarding snapshot checked against the source through the frontend generator extension of October 29, 2026. The repository source, [README](../README.md), specifications, and accepted ADRs take precedence over this summary. Check Git state and tests before relying on a remote branch or release claim.
+This is an onboarding snapshot checked against the source through the streamlined TUI generation flow of October 30, 2026. The repository source, [README](../README.md), specifications, and accepted ADRs take precedence over this summary. Check Git state and tests before relying on a remote branch or release claim.
 
 ## Product and history
 
@@ -35,7 +35,7 @@ The interfaces share `application.ProjectService`. The planner never writes or r
 | `provisionhub project apply --file ./demo/provisionhub.yaml --plugins ./plugins [--yes]` | Preview, preflight, require explicit approval, then generate declared files without overwrites |
 | `provisionhub version`, `provisionhub --help` | Metadata and command help without a TUI |
 
-The TUI's Review `p` previews unsaved configuration without writing; Enter on Review saves only the manifest. On the saved result screen, `p` previews current plugin-backed operations. If executable, `g` opens confirmation, `y` applies, and `n`/Esc cancels. `PROVISIONHUB_PLUGINS` supplies the local plugin directory. When unset or empty, the TUI uses a `plugins` directory beside its executable if present, enabling portable builds without environment setup. CLI commands still require `--plugins`. Text fields treat `p`, `q`, `j`, and `k` as ordinary characters. Open Existing Project, Plugin Marketplace, and Settings remain explanatory screens.
+The TUI's Review `p` previews unsaved configuration without writing. With an executable plan, Review shows **Generate Project**; Enter saves the manifest and generates declared files in one approved action. An unavailable plan shows **Save Manifest Only**. If generation fails after manifest publication, the result screen reports the error and offers a fresh `p` preview and `g` → `y` confirmed retry. `PROVISIONHUB_PLUGINS` supplies the local plugin directory. When unset or empty, the TUI uses a `plugins` directory beside its executable if present, enabling portable builds without environment setup. CLI commands still require `--plugins`. Text fields treat `p`, `q`, `j`, and `k` as ordinary characters. Open Existing Project, Plugin Marketplace, and Settings remain explanatory screens.
 
 The [project manifest](project-manifest.md) is `provisionhub.dev/v1alpha1`, `kind: Project`, with a portable lowercase name, required backend, and optional frontend/database. Built-in backend IDs are `go`, `nestjs`, `spring-boot`; frontend IDs are `nextjs`, `react`; database IDs are `mysql`, `postgresql`. Catalog membership means a valid choice, not generation support. The manifest stores desired configuration and no credentials or destination path. Saving a manifest creates a complete temporary file and publishes it with a no-overwrite hard link.
 

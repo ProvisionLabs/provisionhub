@@ -45,7 +45,7 @@ func TestWizardSelectionBackReviewAndSuccess(t *testing.T) {
 	if m.wizard.destination.Value() != destination {
 		t.Fatalf("destination input lost text: %q", m.wizard.destination.Value())
 	}
-	for _, part := range []string{"my-app", "new project", "NestJS", "Next.js", "PostgreSQL", "Create Manifest"} {
+	for _, part := range []string{"my-app", "new project", "NestJS", "Next.js", "PostgreSQL", "Save Manifest Only"} {
 		if !strings.Contains(m.View().Content, part) {
 			t.Errorf("review missing %q", part)
 		}

@@ -66,7 +66,7 @@ func TestWizardPlanPreviewPreservesSelectionsAndSaveBehavior(t *testing.T) {
 		t.Fatal("back to configuration lost selections")
 	}
 	press(m, tea.KeyEnter, "")
-	cmd := press(m, tea.KeyEnter, "") // Existing explicit save action remains unchanged.
+	cmd := press(m, tea.KeyEnter, "") // Unsupported selection saves only the manifest.
 	if cmd == nil || !m.wizard.saving {
 		t.Fatal("Review Enter no longer saves the manifest")
 	}

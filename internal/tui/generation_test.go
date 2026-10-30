@@ -44,7 +44,7 @@ files:
 	return m, filepath.Join(base, "project with spaces")
 }
 
-func savedGeneratorWizard(t *testing.T, m *Model, destination string) {
+func reviewGeneratorWizard(t *testing.T, m *Model, destination string) {
 	t.Helper()
 	openWizard(m, "my-app", destination)
 	press(m, tea.KeyDown, "") // NestJS backend.
@@ -54,22 +54,20 @@ func savedGeneratorWizard(t *testing.T, m *Model, destination string) {
 	if m.wizard.step != reviewStep {
 		t.Fatalf("step %v: %s", m.wizard.step, m.wizard.err)
 	}
-	cmd := press(m, tea.KeyEnter, "")
-	if cmd == nil {
-		t.Fatal("manifest save did not start")
-	}
-	m.Update(cmd())
-	if m.wizard.step != resultStep {
-		t.Fatalf("save failed: %s", m.wizard.err)
+	if !m.wizard.plan.Executable {
+		t.Fatalf("generator unavailable: %+v", m.wizard.plan)
 	}
 }
 
-func TestTUIRequiresPreviewAndSeparateConfirmationToGenerate(t *testing.T) {
+func TestTUIReviewGeneratesProjectAfterExplicitEnter(t *testing.T) {
 	m, destination := generatorModel(t)
-	savedGeneratorWizard(t, m, destination)
+	reviewGeneratorWizard(t, m, destination)
 	output := filepath.Join(destination, "package.json")
 	if _, err := os.Stat(output); !os.IsNotExist(err) {
-		t.Fatal("save generated source")
+		t.Fatal("review generated source")
+	}
+	if !strings.Contains(m.View().Content, "Generate Project") {
+		t.Fatal("review does not label the generation action")
 	}
 	if cmd := press(m, 'p', "p"); cmd != nil || !m.wizard.preview || !m.wizard.plan.Executable {
 		t.Fatalf("preview: %v %+v", cmd, m.wizard.plan)
@@ -84,21 +82,18 @@ func TestTUIRequiresPreviewAndSeparateConfirmationToGenerate(t *testing.T) {
 		}
 	}
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	press(m, 'g', "g")
-	if !m.wizard.confirm || !strings.Contains(m.View().Content, "confirm") {
-		t.Fatal("no confirmation screen")
-	}
-	press(m, 'n', "n")
-	if m.wizard.confirm {
-		t.Fatal("cancel did not close confirmation")
-	}
+	press(m, tea.KeyEnter, "") // Return from read-only preview.
 	if _, err := os.Stat(output); !os.IsNotExist(err) {
-		t.Fatal("cancellation generated source")
+		t.Fatal("preview generated source")
 	}
-	press(m, 'g', "g")
-	cmd := press(m, 'y', "y")
+	press(m, tea.KeyEscape, "") // Return to selections without writing.
+	if m.wizard.step != databaseStep {
+		t.Fatal("review cancellation lost navigation")
+	}
+	press(m, tea.KeyEnter, "")
+	cmd := press(m, tea.KeyEnter, "") // Explicit Generate Project action.
 	if cmd == nil || !m.wizard.applying {
-		t.Fatal("confirmed apply did not start")
+		t.Fatal("generation did not start from review")
 	}
 	if _, quit := m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}); quit != nil {
 		t.Fatal("quit interrupted in-progress publication")
@@ -107,8 +102,11 @@ func TestTUIRequiresPreviewAndSeparateConfirmationToGenerate(t *testing.T) {
 		t.Fatal("confirmation wrote before command")
 	}
 	m.Update(cmd())
-	if m.wizard.preview || m.wizard.applying || len(m.wizard.applyResult.Created) != 1 {
+	if m.wizard.step != resultStep || m.wizard.preview || m.wizard.applying || len(m.wizard.applyResult.Created) != 1 {
 		t.Fatalf("apply result: %+v", m.wizard)
+	}
+	if !strings.Contains(m.View().Content, "Project generated successfully") {
+		t.Fatal("success screen did not report generation")
 	}
 	if data, err := os.ReadFile(output); err != nil || !strings.Contains(string(data), "my-app") {
 		t.Fatalf("generated file: %v %s", err, data)
@@ -117,30 +115,49 @@ func TestTUIRequiresPreviewAndSeparateConfirmationToGenerate(t *testing.T) {
 
 func TestTUIApplyFailureKeepsManifestAndAllowsReviewRetry(t *testing.T) {
 	m, destination := generatorModel(t)
-	savedGeneratorWizard(t, m, destination)
-	press(m, 'p', "p")
-	press(m, 'g', "g")
+	reviewGeneratorWizard(t, m, destination)
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(destination, "package.json"), []byte("existing"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cmd := press(m, 'y', "y")
+	cmd := press(m, tea.KeyEnter, "")
 	if cmd == nil {
-		t.Fatal("apply command missing")
+		t.Fatal("generation command missing")
 	}
 	m.Update(cmd())
-	if m.wizard.step != resultStep || !strings.Contains(m.wizard.err, "already exists") {
-		t.Fatalf("failure state: %+v", m.wizard)
+	if m.wizard.step != resultStep || !strings.Contains(m.wizard.err, "already exists") || !strings.Contains(strings.Join(m.wizard.lines(m.service, 64), "\n"), "generation incomplete") {
+		t.Fatalf("failure state: step %v, error %q", m.wizard.step, m.wizard.err)
+	}
+	if data, err := os.ReadFile(filepath.Join(destination, "package.json")); err != nil || string(data) != "existing" {
+		t.Fatalf("conflicting output changed: %v %s", err, data)
 	}
 	if _, err := os.Stat(m.wizard.result.ManifestPath); err != nil {
 		t.Fatal("manifest lost")
+	}
+	if err := os.Remove(filepath.Join(destination, "package.json")); err != nil {
+		t.Fatal(err)
 	}
 	press(m, 'p', "p")
 	if !m.wizard.preview {
 		t.Fatal("cannot review after failure")
 	}
+	press(m, 'g', "g")
+	if !m.wizard.confirm {
+		t.Fatal("retry did not request confirmation")
+	}
+	cmd = press(m, 'y', "y")
+	if cmd == nil {
+		t.Fatal("retry command missing")
+	}
+	m.Update(cmd())
+	if m.wizard.err != "" || len(m.wizard.applyResult.Created) != 1 {
+		t.Fatalf("retry failed: %+v", m.wizard)
+	}
 }
 
-func TestTUICombinedFrontendPreviewAndConfirmation(t *testing.T) {
+func TestTUICombinedFrontendGenerationFromReview(t *testing.T) {
 	m, destination := generatorModel(t)
 	plugin := filepath.Join(filepath.Dir(destination), "plugins", "nextjs")
 	if err := os.MkdirAll(filepath.Join(plugin, "templates"), 0o755); err != nil {
@@ -174,14 +191,6 @@ files:
 	if m.wizard.step != reviewStep {
 		t.Fatalf("review step: %v, %s", m.wizard.step, m.wizard.err)
 	}
-	cmd := press(m, tea.KeyEnter, "")
-	if cmd == nil {
-		t.Fatal("manifest save did not start")
-	}
-	m.Update(cmd())
-	if m.wizard.step != resultStep {
-		t.Fatalf("save failed: %s", m.wizard.err)
-	}
 	press(m, 'p', "p")
 	if !m.wizard.preview || !m.wizard.plan.Executable {
 		t.Fatalf("combined preview: %+v", m.wizard.plan)
@@ -192,17 +201,18 @@ files:
 			t.Fatalf("preview missing %q", part)
 		}
 	}
-	press(m, 'g', "g")
-	press(m, 'n', "n")
+	press(m, tea.KeyEnter, "") // Close read-only preview.
 	if _, err := os.Stat(filepath.Join(destination, "frontend", "package.json")); !os.IsNotExist(err) {
-		t.Fatal("canceled generation wrote frontend")
+		t.Fatal("preview generated frontend")
 	}
-	press(m, 'g', "g")
-	cmd = press(m, 'y', "y")
-	if cmd == nil {
-		t.Fatal("confirmed generation did not start")
+	cmd := press(m, tea.KeyEnter, "")
+	if cmd == nil || !m.wizard.applying {
+		t.Fatal("review did not start combined generation")
 	}
 	m.Update(cmd())
+	if m.wizard.step != resultStep || len(m.wizard.applyResult.Created) != 2 {
+		t.Fatalf("combined result: %+v", m.wizard)
+	}
 	for _, target := range []string{"package.json", "frontend/package.json"} {
 		data, err := os.ReadFile(filepath.Join(destination, target))
 		if err != nil || !strings.Contains(string(data), "my-app") {
