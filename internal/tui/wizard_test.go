@@ -25,19 +25,32 @@ func openWizard(m *Model, name, destination string) {
 	press(m, tea.KeyEnter, "")
 }
 
-func TestWizardSelectionBackReviewAndSuccess(t *testing.T) {
+func TestCreateProjectOpensNamedComponentsDirectly(t *testing.T) {
+	m := newTestModel()
+	press(m, tea.KeyEnter, "")
+	if strings.Contains(m.View().Content, "F2") || strings.Contains(m.View().Content, "Legacy categories") {
+		t.Fatal("legacy mode still appears in project information")
+	}
+	typeText(m, "demo")
+	press(m, tea.KeyEnter, "")
+	typeText(m, filepath.Join(t.TempDir(), "demo"))
+	press(m, tea.KeyF2, "")
+	press(m, tea.KeyEnter, "")
+	if m.wizard.step != componentListStep || !strings.Contains(m.View().Content, "No components yet") {
+		t.Fatalf("wizard did not open named components: %v, %s", m.wizard.step, m.View().Content)
+	}
+}
+
+func TestWizardComponentReviewAndSuccess(t *testing.T) {
 	m := newTestModel()
 	destination := filepath.Join(t.TempDir(), "new project")
 	openWizard(m, "my-app", destination)
-	if m.wizard.step != backendStep {
-		t.Fatalf("step after valid project information = %v; error = %q", m.wizard.step, m.wizard.err)
+	if m.wizard.step != componentListStep {
+		t.Fatalf("step after project information = %v; error = %q", m.wizard.step, m.wizard.err)
 	}
-	press(m, tea.KeyDown, "") // NestJS, after Go.
-	press(m, tea.KeyEnter, "")
-	press(m, tea.KeyDown, "") // Next.js, after None.
-	press(m, tea.KeyEnter, "")
-	press(m, tea.KeyDown, "") // MySQL.
-	press(m, tea.KeyDown, "") // PostgreSQL.
+	addComponent(t, m, "api", 0, 1)  // NestJS.
+	addComponent(t, m, "web", 1, 0)  // Next.js.
+	addComponent(t, m, "data", 2, 1) // PostgreSQL.
 	press(m, tea.KeyEnter, "")
 	if m.wizard.step != reviewStep {
 		t.Fatalf("step = %v, error = %q", m.wizard.step, m.wizard.err)
@@ -45,14 +58,14 @@ func TestWizardSelectionBackReviewAndSuccess(t *testing.T) {
 	if m.wizard.destination.Value() != destination {
 		t.Fatalf("destination input lost text: %q", m.wizard.destination.Value())
 	}
-	for _, part := range []string{"my-app", "new project", "NestJS", "Next.js", "PostgreSQL", "Save Manifest Only"} {
+	for _, part := range []string{"my-app", "new project", "api", "web", "data", "NestJS", "Next.js", "PostgreSQL", "Save Manifest Only"} {
 		if !strings.Contains(m.View().Content, part) {
 			t.Errorf("review missing %q", part)
 		}
 	}
 	press(m, tea.KeyEscape, "")
-	if m.wizard.step != databaseStep || m.wizard.selected[2] != 2 {
-		t.Fatal("back navigation lost database selection")
+	if m.wizard.step != componentListStep || len(m.wizard.components) != 3 {
+		t.Fatal("back navigation lost components")
 	}
 	press(m, tea.KeyEnter, "")
 	cmd := press(m, tea.KeyEnter, "")
@@ -62,8 +75,7 @@ func TestWizardSelectionBackReviewAndSuccess(t *testing.T) {
 	if m.wizard.step == resultStep {
 		t.Fatal("success shown before persistence completed")
 	}
-	msg := cmd()
-	m.Update(msg)
+	m.Update(cmd())
 	if m.wizard.step != resultStep || !strings.Contains(m.View().Content, "Manifest created successfully") {
 		t.Fatalf("result step = %v, error = %q", m.wizard.step, m.wizard.err)
 	}
@@ -71,8 +83,8 @@ func TestWizardSelectionBackReviewAndSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Spec.Backend.Technology != "nestjs" || manifest.Spec.Frontend.Technology != "nextjs" || manifest.Spec.Database.Technology != "postgresql" {
-		t.Fatalf("saved selections = %+v", manifest.Spec)
+	if manifest.Spec.Backend != nil || len(manifest.Spec.Components) != 3 {
+		t.Fatalf("saved legacy format or lost components: %+v", manifest.Spec)
 	}
 	press(m, tea.KeyEscape, "")
 	if m.nav.current != home {
@@ -107,9 +119,8 @@ func TestWizardFailureCanRetry(t *testing.T) {
 	m := newTestModel()
 	destination := filepath.Join(t.TempDir(), "project")
 	openWizard(m, "demo", destination)
-	for range 3 {
-		press(m, tea.KeyEnter, "") // Backend, Frontend None, Database None.
-	}
+	addNestComponent(t, m, "api")
+	press(m, tea.KeyEnter, "")
 	if m.wizard.step != reviewStep {
 		t.Fatalf("expected review, got %v: %q", m.wizard.step, m.wizard.err)
 	}

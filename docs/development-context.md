@@ -19,11 +19,11 @@ The Go repository owns catalog definitions, manifest parsing, application servic
 | [internal/execution](../internal/execution/) | Reviewed, root-confined staging and no-overwrite file publication |
 | [internal/application](../internal/application/) | Shared validation, project creation, plan freshness, and apply coordination |
 | [internal/cli](../internal/cli/) | Cobra commands, text/JSON plans, terminal or `--yes` approval |
-| [internal/tui](../internal/tui/) | Bubble Tea navigation, legacy and named-component wizard, preview, explicit generation |
+| [internal/tui](../internal/tui/) | Bubble Tea navigation, named-component wizard, preview, explicit generation |
 
 ## User behavior
 
-`provisionhub project init --name demo --path ./demo --backend nestjs` remains the simple legacy flow. A complex project can use `project init --from ./source.yaml --path ./demo`. Both formats use `project plan --file ... --plugins ...` and `project apply --file ... --plugins ...`; apply requires explicit approval. The TUI defaults to the legacy wizard. F2 on project information selects named-component mode, where `a`, `e`, and `d` add, edit, and remove instances. Review `p` shows the read-only plan; Enter on **Generate Project** creates the manifest and generated files. The result screen offers a fresh preview and confirmed retry if generation fails after the manifest is saved.
+`provisionhub project init --name demo --path ./demo --backend nestjs` remains the simple legacy CLI flow. A complex project can use `project init --from ./source.yaml --path ./demo`. Both formats use `project plan --file ... --plugins ...` and `project apply --file ... --plugins ...`; apply requires explicit approval. The TUI creates named-component manifests directly: after project information, `a`, `e`, and `d` add, edit, and remove instances. Review `p` shows the read-only plan; Enter on **Generate Project** creates the manifest and generated files. The result screen offers a fresh preview and confirmed retry if generation fails after the manifest is saved.
 
 The manifest remains at the destination root, anchoring plan/apply. Named components generate below their names (`api/`, `billing/`, `web/`); legacy manifests retain `backend/` and `frontend/` outputs. `{{componentName}}` is the instance name for named projects and the project name for legacy projects. The same plugin definition serves repeated instances. Optional `http` connections are validated and serialized but do not wire applications together. A catalog technology without a generator makes the plan non-executable.
 

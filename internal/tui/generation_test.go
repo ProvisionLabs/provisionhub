@@ -34,7 +34,7 @@ files:
 	if err := os.WriteFile(filepath.Join(base, "plugins", "nestjs", "plugin.yaml"), []byte(definition), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(folder, "package.json.tmpl"), []byte(`{"name":"{{projectName}}"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(folder, "package.json.tmpl"), []byte(`{"name":"{{componentName}}"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	m, err := NewModelWithPlugins(application.Info(), filepath.Join(base, "plugins"))
@@ -47,10 +47,8 @@ files:
 func reviewGeneratorWizard(t *testing.T, m *Model, destination string) {
 	t.Helper()
 	openWizard(m, "my-app", destination)
-	press(m, tea.KeyDown, "") // NestJS backend.
+	addNestComponent(t, m, "api")
 	press(m, tea.KeyEnter, "")
-	press(m, tea.KeyEnter, "") // No frontend.
-	press(m, tea.KeyEnter, "") // No database.
 	if m.wizard.step != reviewStep {
 		t.Fatalf("step %v: %s", m.wizard.step, m.wizard.err)
 	}
@@ -62,7 +60,7 @@ func reviewGeneratorWizard(t *testing.T, m *Model, destination string) {
 func TestTUIReviewGeneratesProjectAfterExplicitEnter(t *testing.T) {
 	m, destination := generatorModel(t)
 	reviewGeneratorWizard(t, m, destination)
-	output := filepath.Join(destination, "package.json")
+	output := filepath.Join(destination, "api", "package.json")
 	if _, err := os.Stat(output); !os.IsNotExist(err) {
 		t.Fatal("review generated source")
 	}
@@ -87,7 +85,7 @@ func TestTUIReviewGeneratesProjectAfterExplicitEnter(t *testing.T) {
 		t.Fatal("preview generated source")
 	}
 	press(m, tea.KeyEscape, "") // Return to selections without writing.
-	if m.wizard.step != databaseStep {
+	if m.wizard.step != componentListStep {
 		t.Fatal("review cancellation lost navigation")
 	}
 	press(m, tea.KeyEnter, "")
@@ -108,7 +106,7 @@ func TestTUIReviewGeneratesProjectAfterExplicitEnter(t *testing.T) {
 	if !strings.Contains(m.View().Content, "Project generated successfully") {
 		t.Fatal("success screen did not report generation")
 	}
-	if data, err := os.ReadFile(output); err != nil || !strings.Contains(string(data), "my-app") {
+	if data, err := os.ReadFile(output); err != nil || !strings.Contains(string(data), "api") {
 		t.Fatalf("generated file: %v %s", err, data)
 	}
 }
@@ -119,7 +117,10 @@ func TestTUIApplyFailureKeepsManifestAndAllowsReviewRetry(t *testing.T) {
 	if err := os.MkdirAll(destination, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(destination, "package.json"), []byte("existing"), 0o644); err != nil {
+	if err := os.MkdirAll(filepath.Join(destination, "api"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(destination, "api", "package.json"), []byte("existing"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cmd := press(m, tea.KeyEnter, "")
@@ -130,13 +131,13 @@ func TestTUIApplyFailureKeepsManifestAndAllowsReviewRetry(t *testing.T) {
 	if m.wizard.step != resultStep || !strings.Contains(m.wizard.err, "already exists") || !strings.Contains(strings.Join(m.wizard.lines(m.service, 64), "\n"), "generation incomplete") {
 		t.Fatalf("failure state: step %v, error %q", m.wizard.step, m.wizard.err)
 	}
-	if data, err := os.ReadFile(filepath.Join(destination, "package.json")); err != nil || string(data) != "existing" {
+	if data, err := os.ReadFile(filepath.Join(destination, "api", "package.json")); err != nil || string(data) != "existing" {
 		t.Fatalf("conflicting output changed: %v %s", err, data)
 	}
 	if _, err := os.Stat(m.wizard.result.ManifestPath); err != nil {
 		t.Fatal("manifest lost")
 	}
-	if err := os.Remove(filepath.Join(destination, "package.json")); err != nil {
+	if err := os.Remove(filepath.Join(destination, "api", "package.json")); err != nil {
 		t.Fatal(err)
 	}
 	press(m, 'p', "p")
@@ -179,15 +180,13 @@ files:
 	if err := os.WriteFile(filepath.Join(plugin, "plugin.yaml"), []byte(definition), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(plugin, "templates", "package.json.tmpl"), []byte(`{"name":"{{projectName}}"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(plugin, "templates", "package.json.tmpl"), []byte(`{"name":"{{componentName}}"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	openWizard(m, "my-app", destination)
-	press(m, tea.KeyDown, "") // NestJS backend.
+	addNestComponent(t, m, "api")
+	addComponent(t, m, "web", 1, 0)
 	press(m, tea.KeyEnter, "")
-	press(m, tea.KeyDown, "") // Next.js frontend.
-	press(m, tea.KeyEnter, "")
-	press(m, tea.KeyEnter, "") // No database.
 	if m.wizard.step != reviewStep {
 		t.Fatalf("review step: %v, %s", m.wizard.step, m.wizard.err)
 	}
@@ -196,13 +195,13 @@ files:
 		t.Fatalf("combined preview: %+v", m.wizard.plan)
 	}
 	preview := strings.Join(m.wizard.planLines(80), "\n")
-	for _, part := range []string{"frontend:nextjs", "official-nextjs", "frontend/package.json", "backend:nestjs"} {
+	for _, part := range []string{"component/web", "official-nextjs", "web/package.json", "component/api"} {
 		if !strings.Contains(preview, part) {
 			t.Fatalf("preview missing %q", part)
 		}
 	}
 	press(m, tea.KeyEnter, "") // Close read-only preview.
-	if _, err := os.Stat(filepath.Join(destination, "frontend", "package.json")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(destination, "web", "package.json")); !os.IsNotExist(err) {
 		t.Fatal("preview generated frontend")
 	}
 	cmd := press(m, tea.KeyEnter, "")
@@ -213,9 +212,9 @@ files:
 	if m.wizard.step != resultStep || len(m.wizard.applyResult.Created) != 2 {
 		t.Fatalf("combined result: %+v", m.wizard)
 	}
-	for _, target := range []string{"package.json", "frontend/package.json"} {
+	for _, target := range []string{"api/package.json", "web/package.json"} {
 		data, err := os.ReadFile(filepath.Join(destination, target))
-		if err != nil || !strings.Contains(string(data), "my-app") {
+		if err != nil || !strings.Contains(string(data), strings.Split(target, "/")[0]) {
 			t.Fatalf("generated %q: %v %s", target, err, data)
 		}
 	}

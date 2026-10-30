@@ -195,7 +195,7 @@ func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.Proje
 }
 
 func (w *wizard) componentLines(service application.ProjectService, contentWidth int) []string {
-	lines := []string{"PROVISIONHUB · Create Project", "Named components · " + w.name.Value(), "", strings.Repeat("─", contentWidth), ""}
+	lines := []string{"PROVISIONHUB · Create Project", "Components · " + w.name.Value(), "", strings.Repeat("─", contentWidth), ""}
 	switch w.step {
 	case componentListStep:
 		lines = append(lines, "Components:")
@@ -241,6 +241,8 @@ func (w *wizard) componentLines(service application.ProjectService, contentWidth
 			status := "Manifest created successfully"
 			if len(w.applyResult.Created) > 0 {
 				status = "Project generated successfully"
+			} else if w.err != "" {
+				status = "Manifest saved; generation incomplete"
 			}
 			lines = append(lines, "", status, "Manifest: "+fitTail(w.result.ManifestPath, contentWidth-10), "p plan · enter/esc home")
 		}
