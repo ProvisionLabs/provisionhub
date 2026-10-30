@@ -25,29 +25,33 @@ func BuildWithPlugins(manifest project.Manifest, technologies catalog.Catalog, l
 		plan.Diagnostics = append(plan.Diagnostics, Diagnostic{Severity: SeverityError, Code: InvalidManifest, Message: err.Error()})
 		return finalizePlan(plan)
 	}
-	type selection struct {
-		category catalog.Category
-		id       string
-	}
-	selections := []selection{{catalog.Backend, manifest.Spec.Backend.Technology}}
-	if manifest.Spec.Frontend != nil {
-		selections = append(selections, selection{catalog.Frontend, manifest.Spec.Frontend.Technology})
-	}
-	if manifest.Spec.Database != nil {
-		selections = append(selections, selection{catalog.Database, manifest.Spec.Database.Technology})
+	components := manifest.CanonicalComponents()
+	if manifest.UsesComponents() {
+		plan.Components = []Component{}
+		plan.Connections = manifest.CanonicalConnections()
 	}
 	var ids []string
-	for _, selection := range selections {
-		technology, err := technologies.ValidateSelection(selection.category, selection.id)
+	for _, component := range components {
+		technology, err := technologies.ValidateSelection(catalog.Category(component.Type), component.Technology)
 		if err != nil {
+			field := "spec." + component.Type + ".technology"
+			componentID := ""
+			if !component.Legacy {
+				field = "spec.components." + component.Name + ".technology"
+				componentID = component.ID()
+			}
 			plan.Diagnostics = append(plan.Diagnostics, Diagnostic{
-				Severity: SeverityError, Code: InvalidTechnology, Message: err.Error(), Technology: selection.id,
-				Field: "spec." + string(selection.category) + ".technology",
+				Severity: SeverityError, Code: InvalidTechnology, Message: err.Error(), Technology: component.Technology,
+				ComponentID: componentID, Field: field,
 			})
 			continue
 		}
 		ids = append(ids, technology.ID)
-		plan.Technologies = append(plan.Technologies, Technology{ID: technology.ID, Name: technology.Name, Category: technology.Category})
+		entry := Technology{ID: technology.ID, Name: technology.Name, Category: technology.Category}
+		if !component.Legacy {
+			entry.ComponentID = component.ID()
+		}
+		plan.Technologies = append(plan.Technologies, entry)
 	}
 	if len(plan.Diagnostics) != 0 {
 		return finalizePlan(plan)
@@ -57,9 +61,16 @@ func BuildWithPlugins(manifest project.Manifest, technologies catalog.Catalog, l
 		return finalizePlan(plan)
 	}
 	plan.Status = StatusPlanned
-	for _, technology := range plan.Technologies {
+	for i, technology := range plan.Technologies {
+		component := components[i]
+		componentID := ""
+		operationID := string(technology.Category) + ":" + technology.ID
+		if !component.Legacy {
+			componentID = component.ID()
+			operationID = componentID
+		}
 		operation := Operation{
-			ID: string(technology.Category) + ":" + technology.ID, Technology: technology.ID,
+			ID: operationID, Technology: technology.ID, ComponentID: componentID,
 			TargetPaths: []string{}, Dependencies: []string{}, Status: OperationUnavailable,
 		}
 		var message string
@@ -72,33 +83,41 @@ func BuildWithPlugins(manifest project.Manifest, technologies catalog.Catalog, l
 			message = fmt.Sprintf("No frontend generator is registered for %s.", technology.Name)
 		case catalog.Database:
 			operation.Type, operation.Description = IntegrateDatabase, "Integrate database with backend"
-			operation.Dependencies = []string{"backend:" + manifest.Spec.Backend.Technology}
+			if component.Legacy {
+				operation.Dependencies = []string{"backend:" + manifest.Spec.Backend.Technology}
+			}
 			message = fmt.Sprintf("No database integration provider is registered for %s.", technology.Name)
 		}
+		planComponent := Component{ID: component.ID(), Name: component.Name, Type: technology.Category, Technology: technology.ID}
 		if plugin, ok := loaded.ForTechnology(technology.ID); ok &&
 			(technology.Category == catalog.Backend || technology.Category == catalog.Frontend) {
 			operation.Status = OperationSupported
 			operation.PluginID = plugin.ID
 			operation.PluginDigest = hex.EncodeToString(plugin.Digest[:])
+			planComponent.PluginID = plugin.ID
 			for _, file := range plugin.Files {
-				operation.TargetPaths = append(operation.TargetPaths, file.Destination)
+				target := plugins.DestinationFor(component, file)
+				operation.TargetPaths = append(operation.TargetPaths, target)
 				plan.Operations = append(plan.Operations, Operation{
-					ID:          "file:" + plugin.ID + ":" + file.Destination,
-					Description: "Create " + file.Destination,
-					Type:        GenerateFile, Technology: technology.ID, PluginID: plugin.ID,
+					ID:          "file:" + plugin.ID + ":" + target,
+					Description: "Create " + target,
+					Type:        GenerateFile, Technology: technology.ID, ComponentID: componentID, PluginID: plugin.ID,
 					PluginDigest: hex.EncodeToString(plugin.Digest[:]),
 					Source:       file.Source, SourceType: file.Type,
 					SourceDigest: hex.EncodeToString(file.Digest[:]),
-					TargetPaths:  []string{file.Destination}, Dependencies: []string{operation.ID}, Status: OperationSupported,
+					TargetPaths:  []string{target}, Dependencies: []string{operation.ID}, Status: OperationSupported,
 				})
 			}
 		} else {
 			plan.Diagnostics = append(plan.Diagnostics, Diagnostic{
 				Severity: SeverityWarning, Code: MissingOperationProvider,
-				Message: message, OperationID: operation.ID, Technology: technology.ID,
+				Message: message, OperationID: operation.ID, Technology: technology.ID, ComponentID: componentID,
 			})
 		}
 		plan.Operations = append(plan.Operations, operation)
+		if manifest.UsesComponents() {
+			plan.Components = append(plan.Components, planComponent)
+		}
 	}
 	return finalizePlan(plan)
 }

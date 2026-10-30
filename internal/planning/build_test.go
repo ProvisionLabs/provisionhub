@@ -57,3 +57,28 @@ func TestBuildResolvesOptionalCapabilities(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildNamesUnavailableComponentInstances(t *testing.T) {
+	manifest := project.Manifest{APIVersion: project.APIVersion, Kind: project.Kind,
+		Metadata: project.Metadata{Name: "demo"}, Spec: project.Spec{
+			Components: []project.Component{
+				{Name: "billing", Type: "backend", Technology: "nestjs"},
+				{Name: "api", Type: "backend", Technology: "nestjs"},
+			},
+		}}
+	plan := Build(manifest, catalog.Builtin())
+	if plan.Executable || len(plan.Components) != 2 || len(plan.Operations) != 2 || len(plan.Diagnostics) != 2 {
+		t.Fatalf("unexpected plan: %+v", plan)
+	}
+	for i, name := range []string{"api", "billing"} {
+		id := "component/" + name
+		if plan.Components[i].ID != id || plan.Operations[i].ID != id || plan.Operations[i].ComponentID != id || plan.Diagnostics[i].ComponentID != id {
+			t.Fatalf("component %s lost its identity: %+v", name, plan)
+		}
+	}
+	manifest.Spec.Components[0].Technology = "nextjs"
+	invalid := Build(manifest, catalog.Builtin())
+	if invalid.Executable || invalid.Status != StatusInvalid || len(invalid.Diagnostics) != 1 || invalid.Diagnostics[0].ComponentID != "component/billing" || invalid.Diagnostics[0].Code != InvalidTechnology {
+		t.Fatalf("category mismatch: %+v", invalid)
+	}
+}

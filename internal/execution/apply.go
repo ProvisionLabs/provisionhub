@@ -102,13 +102,17 @@ func Apply(reviewed planning.Plan, manifest project.Manifest, loaded plugins.Set
 		if op.Type != planning.GenerateFile {
 			continue
 		}
+		component, err := componentForOperation(manifest, op)
+		if err != nil {
+			return Result{}, err
+		}
 		plugin, ok := loaded.ForTechnology(op.Technology)
 		if !ok || plugin.ID != op.PluginID {
 			return Result{}, fmt.Errorf("plugin for %q changed", op.Technology)
 		}
 		var matched *plugins.File
 		for i := range plugin.Files {
-			if plugin.Files[i].Source == op.Source && plugin.Files[i].Destination == op.TargetPaths[0] {
+			if plugin.Files[i].Source == op.Source && plugins.DestinationFor(component, plugin.Files[i]) == op.TargetPaths[0] {
 				matched = &plugin.Files[i]
 				break
 			}
@@ -118,9 +122,13 @@ func Apply(reviewed planning.Plan, manifest project.Manifest, loaded plugins.Set
 		}
 		data := matched.Content
 		if matched.Type == "template" {
-			data = []byte(strings.ReplaceAll(string(data), "{{projectName}}", manifest.Metadata.Name))
+			componentName := component.Name
+			if component.Legacy {
+				componentName = manifest.Metadata.Name
+			}
+			data = []byte(strings.NewReplacer("{{projectName}}", manifest.Metadata.Name, "{{componentName}}", componentName).Replace(string(data)))
 		}
-		outputs = append(outputs, output{path: matched.Destination, data: data})
+		outputs = append(outputs, output{path: op.TargetPaths[0], data: data})
 	}
 	if len(outputs) == 0 {
 		return Result{}, errors.New("plan has no concrete file operations")
@@ -190,6 +198,18 @@ func Apply(reviewed planning.Plan, manifest project.Manifest, loaded plugins.Set
 		created = append(created, item.path)
 	}
 	return Result{Destination: destination, Created: created}, nil
+}
+
+func componentForOperation(manifest project.Manifest, operation planning.Operation) (project.Component, error) {
+	for _, component := range manifest.CanonicalComponents() {
+		if component.Technology != operation.Technology {
+			continue
+		}
+		if (component.Legacy && operation.ComponentID == "") || (!component.Legacy && component.ID() == operation.ComponentID) {
+			return component, nil
+		}
+	}
+	return project.Component{}, fmt.Errorf("component %q for operation %q changed", operation.ComponentID, operation.ID)
 }
 
 func checkTarget(root *os.Root, target string) error {

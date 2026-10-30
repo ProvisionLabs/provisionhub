@@ -12,7 +12,7 @@ func exampleManifest() Manifest {
 		Kind:       Kind,
 		Metadata:   Metadata{Name: "my-application"},
 		Spec: Spec{
-			Backend:  TechnologySelection{Technology: "nestjs"},
+			Backend:  &TechnologySelection{Technology: "nestjs"},
 			Frontend: &TechnologySelection{Technology: "nextjs"},
 			Database: &TechnologySelection{Technology: "postgresql"},
 		},
@@ -89,5 +89,77 @@ func TestValidateName(t *testing.T) {
 		if err := ValidateName(name); err != nil {
 			t.Errorf("rejected valid name %q: %v", name, err)
 		}
+	}
+}
+
+func TestComponentManifestAndDeterministicSerialization(t *testing.T) {
+	manifest := Manifest{APIVersion: APIVersion, Kind: Kind, Metadata: Metadata{Name: "commerce-platform"}, Spec: Spec{
+		Components: []Component{
+			{Name: "web", Type: "frontend", Technology: "nextjs"},
+			{Name: "billing", Type: "backend", Technology: "nestjs"},
+			{Name: "api", Type: "backend", Technology: "nestjs"},
+		},
+		Connections: []Connection{{From: "web", To: "api", Type: "http"}},
+	}}
+	data, err := Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "backend:") || strings.Index(string(data), "name: api") > strings.Index(string(data), "name: billing") {
+		t.Fatalf("noncanonical component YAML: %s", data)
+	}
+	again := manifest
+	again.Spec.Components = []Component{manifest.Spec.Components[2], manifest.Spec.Components[0], manifest.Spec.Components[1]}
+	encoded, err := Marshal(again)
+	if err != nil || string(encoded) != string(data) {
+		t.Fatalf("reordered YAML differs: %v\n%s", err, encoded)
+	}
+	parsed, err := Unmarshal(data)
+	if err != nil || len(parsed.CanonicalComponents()) != 3 || parsed.CanonicalComponents()[0].ID() != "component/api" {
+		t.Fatalf("component round trip: %+v, %v", parsed, err)
+	}
+	legacy := exampleManifest().CanonicalComponents()
+	if len(legacy) != 3 || !legacy[0].Legacy || legacy[0].Name != "backend" {
+		t.Fatalf("legacy normalization: %+v", legacy)
+	}
+}
+
+func TestComponentManifestRejectsInvalidDefinitions(t *testing.T) {
+	base := Manifest{APIVersion: APIVersion, Kind: Kind, Metadata: Metadata{Name: "demo"}, Spec: Spec{
+		Components: []Component{{Name: "api", Type: "backend", Technology: "nestjs"}},
+	}}
+	tests := []struct {
+		name   string
+		mutate func(*Manifest)
+	}{
+		{"empty", func(m *Manifest) { m.Spec.Components = []Component{} }},
+		{"duplicate", func(m *Manifest) { m.Spec.Components = append(m.Spec.Components, m.Spec.Components[0]) }},
+		{"unsafe name", func(m *Manifest) { m.Spec.Components[0].Name = "../escape" }},
+		{"wrong type", func(m *Manifest) { m.Spec.Components[0].Type = "worker" }},
+		{"missing technology", func(m *Manifest) { m.Spec.Components[0].Technology = "" }},
+		{"mixed", func(m *Manifest) { m.Spec.Backend = &TechnologySelection{Technology: "nestjs"} }},
+		{"unknown connection source", func(m *Manifest) { m.Spec.Connections = []Connection{{From: "missing", To: "api", Type: "http"}} }},
+		{"self connection", func(m *Manifest) { m.Spec.Connections = []Connection{{From: "api", To: "api", Type: "http"}} }},
+		{"unsupported connection", func(m *Manifest) {
+			m.Spec.Components = append(m.Spec.Components, Component{Name: "web", Type: "frontend", Technology: "nextjs"})
+			m.Spec.Connections = []Connection{{From: "web", To: "api", Type: "grpc"}}
+		}},
+		{"duplicate connection", func(m *Manifest) {
+			m.Spec.Components = append(m.Spec.Components, Component{Name: "web", Type: "frontend", Technology: "nextjs"})
+			m.Spec.Connections = []Connection{{From: "web", To: "api", Type: "http"}, {From: "web", To: "api", Type: "http"}}
+		}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := base
+			m.Spec.Components = append([]Component{}, base.Spec.Components...)
+			tc.mutate(&m)
+			if err := m.Validate(); err == nil {
+				t.Fatal("accepted invalid manifest")
+			}
+		})
+	}
+	if _, err := Unmarshal([]byte("apiVersion: provisionhub.dev/v1alpha1\nkind: Project\nmetadata: {name: demo}\nspec:\n  components:\n    - {name: api, type: backend, technology: nestjs, unknown: true}\n")); err == nil {
+		t.Fatal("accepted unknown component field")
 	}
 }

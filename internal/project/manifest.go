@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -33,9 +34,61 @@ type TechnologySelection struct {
 }
 
 type Spec struct {
-	Backend  TechnologySelection  `yaml:"backend"`
-	Frontend *TechnologySelection `yaml:"frontend,omitempty"`
-	Database *TechnologySelection `yaml:"database,omitempty"`
+	Backend     *TechnologySelection `yaml:"backend,omitempty"`
+	Frontend    *TechnologySelection `yaml:"frontend,omitempty"`
+	Database    *TechnologySelection `yaml:"database,omitempty"`
+	Components  []Component          `yaml:"components,omitempty"`
+	Connections []Connection         `yaml:"connections,omitempty"`
+}
+
+// Component is one named instance of a catalog technology. Legacy is internal
+// normalization metadata and is never serialized in a project manifest.
+type Component struct {
+	Name       string `yaml:"name"`
+	Type       string `yaml:"type"`
+	Technology string `yaml:"technology"`
+	Legacy     bool   `yaml:"-"`
+}
+
+func (c Component) ID() string { return "component/" + c.Name }
+
+type Connection struct {
+	From string `yaml:"from"`
+	To   string `yaml:"to"`
+	Type string `yaml:"type"`
+}
+
+func (s Spec) usesComponents() bool { return s.Components != nil || s.Connections != nil }
+
+func (m Manifest) UsesComponents() bool { return m.Spec.usesComponents() }
+
+// CanonicalComponents is the common instance model for legacy and new manifests.
+// Names, rather than YAML positions, determine the order and identity.
+func (m Manifest) CanonicalComponents() []Component {
+	if m.Spec.usesComponents() {
+		components := slices.Clone(m.Spec.Components)
+		slices.SortFunc(components, func(a, b Component) int { return strings.Compare(a.Name, b.Name) })
+		return components
+	}
+	components := []Component{}
+	if m.Spec.Backend != nil {
+		components = append(components, Component{Name: "backend", Type: "backend", Technology: m.Spec.Backend.Technology, Legacy: true})
+	}
+	if m.Spec.Frontend != nil {
+		components = append(components, Component{Name: "frontend", Type: "frontend", Technology: m.Spec.Frontend.Technology, Legacy: true})
+	}
+	if m.Spec.Database != nil {
+		components = append(components, Component{Name: "database", Type: "database", Technology: m.Spec.Database.Technology, Legacy: true})
+	}
+	return components
+}
+
+func (m Manifest) CanonicalConnections() []Connection {
+	connections := slices.Clone(m.Spec.Connections)
+	slices.SortFunc(connections, func(a, b Connection) int {
+		return strings.Compare(a.From+"\x00"+a.To+"\x00"+a.Type, b.From+"\x00"+b.To+"\x00"+b.Type)
+	})
+	return connections
 }
 
 // ValidateName accepts a portable, lowercase project identifier.
@@ -50,6 +103,10 @@ func ValidateName(name string) error {
 		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' {
 			return fmt.Errorf("project name %q contains an unsupported character; use lowercase letters, digits, and hyphens", name)
 		}
+	}
+	switch strings.ToUpper(name) {
+	case "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9":
+		return fmt.Errorf("name %q is reserved on Windows", name)
 	}
 	return nil
 }
@@ -66,7 +123,48 @@ func (m Manifest) Validate() error {
 	if err := ValidateName(m.Metadata.Name); err != nil {
 		return err
 	}
-	if strings.TrimSpace(m.Spec.Backend.Technology) == "" {
+	if m.Spec.usesComponents() {
+		if m.Spec.Backend != nil || m.Spec.Frontend != nil || m.Spec.Database != nil {
+			return errors.New("spec.components cannot be mixed with legacy backend, frontend, or database fields")
+		}
+		if len(m.Spec.Components) == 0 {
+			return errors.New("spec.components must contain at least one component")
+		}
+		names := map[string]bool{}
+		for _, component := range m.Spec.Components {
+			if err := ValidateName(component.Name); err != nil {
+				return fmt.Errorf("component name: %w", err)
+			}
+			if names[component.Name] {
+				return fmt.Errorf("duplicate component name %q", component.Name)
+			}
+			names[component.Name] = true
+			if component.Type != "backend" && component.Type != "frontend" && component.Type != "database" {
+				return fmt.Errorf("component %q has unsupported type %q", component.Name, component.Type)
+			}
+			if strings.TrimSpace(component.Technology) == "" {
+				return fmt.Errorf("component %q requires a technology", component.Name)
+			}
+		}
+		connections := map[Connection]bool{}
+		for _, connection := range m.Spec.Connections {
+			if !names[connection.From] || !names[connection.To] {
+				return fmt.Errorf("connection %q to %q references an unknown component", connection.From, connection.To)
+			}
+			if connection.From == connection.To {
+				return fmt.Errorf("connection %q cannot target itself", connection.From)
+			}
+			if connection.Type != "http" {
+				return fmt.Errorf("unsupported connection type %q", connection.Type)
+			}
+			if connections[connection] {
+				return fmt.Errorf("duplicate connection from %q to %q", connection.From, connection.To)
+			}
+			connections[connection] = true
+		}
+		return nil
+	}
+	if m.Spec.Backend == nil || strings.TrimSpace(m.Spec.Backend.Technology) == "" {
 		return errors.New("spec.backend.technology is required")
 	}
 	if m.Spec.Frontend != nil && strings.TrimSpace(m.Spec.Frontend.Technology) == "" {
@@ -82,6 +180,10 @@ func (m Manifest) Validate() error {
 func Marshal(m Manifest) ([]byte, error) {
 	if err := m.Validate(); err != nil {
 		return nil, err
+	}
+	if m.Spec.usesComponents() {
+		m.Spec.Components = m.CanonicalComponents()
+		m.Spec.Connections = m.CanonicalConnections()
 	}
 	return yaml.Marshal(m)
 }

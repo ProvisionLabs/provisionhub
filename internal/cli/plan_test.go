@@ -22,7 +22,7 @@ func planFixture(t *testing.T) string {
 	manifest := project.Manifest{
 		APIVersion: project.APIVersion, Kind: project.Kind, Metadata: project.Metadata{Name: "demo"},
 		Spec: project.Spec{
-			Backend:  project.TechnologySelection{Technology: "nestjs"},
+			Backend:  &project.TechnologySelection{Technology: "nestjs"},
 			Frontend: &project.TechnologySelection{Technology: "nextjs"},
 			Database: &project.TechnologySelection{Technology: "postgresql"},
 		},

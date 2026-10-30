@@ -15,7 +15,7 @@ import (
 func cliPluginFixture(t *testing.T) (string, string) {
 	t.Helper()
 	base := t.TempDir()
-	manifest := project.Manifest{APIVersion: project.APIVersion, Kind: project.Kind, Metadata: project.Metadata{Name: "demo"}, Spec: project.Spec{Backend: project.TechnologySelection{Technology: "nestjs"}}}
+	manifest := project.Manifest{APIVersion: project.APIVersion, Kind: project.Kind, Metadata: project.Metadata{Name: "demo"}, Spec: project.Spec{Backend: &project.TechnologySelection{Technology: "nestjs"}}}
 	file, err := project.Save(filepath.Join(base, "project café"), manifest)
 	if err != nil {
 		t.Fatal(err)

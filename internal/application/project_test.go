@@ -99,7 +99,7 @@ func TestFileAncestorFailureAndUnknownLoadedTechnology(t *testing.T) {
 	manifest := project.Manifest{
 		APIVersion: project.APIVersion, Kind: project.Kind,
 		Metadata: project.Metadata{Name: "demo"},
-		Spec:     project.Spec{Backend: project.TechnologySelection{Technology: "unknown"}},
+		Spec:     project.Spec{Backend: &project.TechnologySelection{Technology: "unknown"}},
 	}
 	data, err := project.Marshal(manifest)
 	if err != nil {

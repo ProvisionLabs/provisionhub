@@ -1,7 +1,10 @@
 // Package planning describes generation intent without filesystem, network, or execution effects.
 package planning
 
-import "github.com/ProvisionLabs/provisionhub/internal/catalog"
+import (
+	"github.com/ProvisionLabs/provisionhub/internal/catalog"
+	"github.com/ProvisionLabs/provisionhub/internal/project"
+)
 
 type Status string
 
@@ -51,19 +54,30 @@ const (
 // Plan separates successful construction from execution availability.
 // Collection fields are emitted as JSON arrays, including when empty.
 type Plan struct {
-	ProjectName     string       `json:"projectName"`
-	ManifestVersion string       `json:"manifestVersion"`
-	Technologies    []Technology `json:"technologies"`
-	Operations      []Operation  `json:"operations"`
-	Diagnostics     []Diagnostic `json:"diagnostics"`
-	Status          Status       `json:"status"`
-	Executable      bool         `json:"executable"`
+	ProjectName     string               `json:"projectName"`
+	ManifestVersion string               `json:"manifestVersion"`
+	Components      []Component          `json:"components,omitempty"`
+	Connections     []project.Connection `json:"connections,omitempty"`
+	Technologies    []Technology         `json:"technologies"`
+	Operations      []Operation          `json:"operations"`
+	Diagnostics     []Diagnostic         `json:"diagnostics"`
+	Status          Status               `json:"status"`
+	Executable      bool                 `json:"executable"`
+}
+
+type Component struct {
+	ID         string           `json:"id"`
+	Name       string           `json:"name"`
+	Type       catalog.Category `json:"type"`
+	Technology string           `json:"technology"`
+	PluginID   string           `json:"pluginId,omitempty"`
 }
 
 type Technology struct {
-	ID       string           `json:"id"`
-	Name     string           `json:"name"`
-	Category catalog.Category `json:"category"`
+	ID          string           `json:"id"`
+	Name        string           `json:"name"`
+	Category    catalog.Category `json:"category"`
+	ComponentID string           `json:"componentId,omitempty"`
 }
 
 type Operation struct {
@@ -71,6 +85,7 @@ type Operation struct {
 	Description  string          `json:"description"`
 	Type         OperationType   `json:"type"`
 	Technology   string          `json:"technology,omitempty"`
+	ComponentID  string          `json:"componentId,omitempty"`
 	PluginID     string          `json:"pluginId,omitempty"`
 	PluginDigest string          `json:"pluginDigest,omitempty"`
 	Source       string          `json:"source,omitempty"`
@@ -87,5 +102,6 @@ type Diagnostic struct {
 	Message     string         `json:"message"`
 	OperationID string         `json:"operationId,omitempty"`
 	Technology  string         `json:"technology,omitempty"`
+	ComponentID string         `json:"componentId,omitempty"`
 	Field       string         `json:"field,omitempty"`
 }

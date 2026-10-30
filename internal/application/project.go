@@ -78,7 +78,7 @@ func (s ProjectService) ValidateInput(input CreateProjectInput) (project.Manifes
 		APIVersion: project.APIVersion,
 		Kind:       project.Kind,
 		Metadata:   project.Metadata{Name: input.Name},
-		Spec:       project.Spec{Backend: project.TechnologySelection{Technology: input.Backend}},
+		Spec:       project.Spec{Backend: &project.TechnologySelection{Technology: input.Backend}},
 	}
 	if input.Frontend != "" && input.Frontend != "none" {
 		if _, err := s.catalog.ValidateSelection(catalog.Frontend, input.Frontend); err != nil {
@@ -116,16 +116,8 @@ func (s ProjectService) LoadProject(path string) (project.Manifest, error) {
 	if err != nil {
 		return project.Manifest{}, err
 	}
-	if _, err := s.catalog.ValidateSelection(catalog.Backend, manifest.Spec.Backend.Technology); err != nil {
-		return project.Manifest{}, err
-	}
-	if manifest.Spec.Frontend != nil {
-		if _, err := s.catalog.ValidateSelection(catalog.Frontend, manifest.Spec.Frontend.Technology); err != nil {
-			return project.Manifest{}, err
-		}
-	}
-	if manifest.Spec.Database != nil {
-		if _, err := s.catalog.ValidateSelection(catalog.Database, manifest.Spec.Database.Technology); err != nil {
+	for _, component := range manifest.CanonicalComponents() {
+		if _, err := s.catalog.ValidateSelection(catalog.Category(component.Type), component.Technology); err != nil {
 			return project.Manifest{}, err
 		}
 	}
@@ -136,12 +128,10 @@ func (s ProjectService) LoadProject(path string) (project.Manifest, error) {
 }
 
 func selectionIDs(manifest project.Manifest) []string {
-	ids := []string{manifest.Spec.Backend.Technology}
-	if manifest.Spec.Frontend != nil {
-		ids = append(ids, manifest.Spec.Frontend.Technology)
-	}
-	if manifest.Spec.Database != nil {
-		ids = append(ids, manifest.Spec.Database.Technology)
+	components := manifest.CanonicalComponents()
+	ids := make([]string, 0, len(components))
+	for _, component := range components {
+		ids = append(ids, component.Technology)
 	}
 	return ids
 }

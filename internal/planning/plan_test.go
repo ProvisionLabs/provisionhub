@@ -12,7 +12,7 @@ func testManifest() project.Manifest {
 	return project.Manifest{
 		APIVersion: project.APIVersion, Kind: project.Kind,
 		Metadata: project.Metadata{Name: "my-application"},
-		Spec:     project.Spec{Backend: project.TechnologySelection{Technology: "nestjs"}},
+		Spec:     project.Spec{Backend: &project.TechnologySelection{Technology: "nestjs"}},
 	}
 }
 

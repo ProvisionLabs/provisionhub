@@ -45,6 +45,16 @@ type Manifest struct {
 
 type Set struct{ byTechnology map[string]Manifest }
 
+// DestinationFor rebases a reusable plugin file into a named component. Legacy
+// projects retain the plugin's original destination for path compatibility.
+func DestinationFor(component project.Component, file File) string {
+	if component.Legacy {
+		return file.Destination
+	}
+	relative := strings.TrimPrefix(file.Destination, component.Type+"/")
+	return path.Join(component.Name, relative)
+}
+
 func (s Set) ForTechnology(id string) (Manifest, bool) {
 	m, ok := s.byTechnology[id]
 	return m, ok
@@ -294,8 +304,8 @@ func validateVariables(content []byte) error {
 			return errors.New("unmatched template delimiter")
 		}
 		value, after, ok := strings.Cut(rest, "}}")
-		if !ok || value != "projectName" {
-			return fmt.Errorf("unsupported template variable %q (only {{projectName}} is allowed)", value)
+		if !ok || (value != "projectName" && value != "componentName") {
+			return fmt.Errorf("unsupported template variable %q (only {{projectName}} and {{componentName}} are allowed)", value)
 		}
 		s = after
 	}
