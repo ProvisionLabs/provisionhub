@@ -88,6 +88,28 @@ func (s ProjectService) CreateAndApplyProject(input CreateProjectInput, reviewed
 	return created, applied, err
 }
 
+// CreateAndApplyComponentProject preserves the reviewed plan and the existing
+// no-overwrite publication path for named component projects.
+func (s ProjectService) CreateAndApplyComponentProject(name, destination string, components []project.Component, reviewed planning.Plan) (CreateProjectResult, execution.Result, error) {
+	manifest, err := s.ValidateComponentsInput(name, destination, components)
+	if err != nil {
+		return CreateProjectResult{}, execution.Result{}, err
+	}
+	fresh, err := s.PlanManifest(manifest)
+	if err != nil {
+		return CreateProjectResult{}, execution.Result{}, err
+	}
+	if !fresh.Executable || !reflect.DeepEqual(reviewed, fresh) {
+		return CreateProjectResult{}, execution.Result{}, fmt.Errorf("generation plan changed or is unavailable; review a new plan before applying")
+	}
+	created, err := s.CreateComponentProject(name, destination, components)
+	if err != nil {
+		return CreateProjectResult{}, execution.Result{}, err
+	}
+	applied, err := s.ApplyProject(created.ManifestPath, reviewed)
+	return created, applied, err
+}
+
 func (s ProjectService) freshInputs(file string, reviewed planning.Plan) (project.Manifest, plugins.Set, error) {
 	manifest, err := s.LoadProject(file)
 	if err != nil {

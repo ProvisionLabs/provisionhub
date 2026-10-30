@@ -11,6 +11,7 @@ import (
 	"github.com/ProvisionLabs/provisionhub/internal/catalog"
 	"github.com/ProvisionLabs/provisionhub/internal/execution"
 	"github.com/ProvisionLabs/provisionhub/internal/planning"
+	"github.com/ProvisionLabs/provisionhub/internal/project"
 )
 
 type wizardStep uint8
@@ -22,6 +23,10 @@ const (
 	databaseStep
 	reviewStep
 	resultStep
+	componentListStep
+	componentCategoryStep
+	componentTechnologyStep
+	componentNameStep
 )
 
 type projectCreatedMsg struct {
@@ -36,22 +41,29 @@ type projectAppliedMsg struct {
 }
 
 type wizard struct {
-	step        wizardStep
-	name        textinput.Model
-	destination textinput.Model
-	focused     int
-	selected    [3]int
-	err         string
-	saving      bool
-	result      application.CreateProjectResult
-	preview     bool
-	confirm     bool
-	applying    bool
-	applyResult execution.Result
-	plan        planning.Plan
-	planOffset  int
-	width       int
-	height      int
+	step                wizardStep
+	name                textinput.Model
+	destination         textinput.Model
+	focused             int
+	selected            [3]int
+	err                 string
+	saving              bool
+	result              application.CreateProjectResult
+	preview             bool
+	confirm             bool
+	applying            bool
+	applyResult         execution.Result
+	plan                planning.Plan
+	planOffset          int
+	width               int
+	height              int
+	multiMode           bool
+	components          []project.Component
+	componentCursor     int
+	componentCategory   int
+	componentTechnology int
+	componentName       textinput.Model
+	editingComponent    int
 }
 
 func newWizard() (wizard, tea.Cmd) {
@@ -64,7 +76,12 @@ func newWizard() (wizard, tea.Cmd) {
 	destination.Prompt = ""
 	destination.Placeholder = "./my-application"
 	destination.SetWidth(38)
-	w := wizard{name: name, destination: destination, width: 80, height: 24}
+	componentName := textinput.New()
+	componentName.Prompt = ""
+	componentName.Placeholder = "api"
+	componentName.CharLimit = 63
+	componentName.SetWidth(38)
+	w := wizard{name: name, destination: destination, componentName: componentName, editingComponent: -1, width: 80, height: 24}
 	cmd := w.name.Focus()
 	return w, cmd
 }
@@ -78,6 +95,7 @@ func (w *wizard) resize(width, height int) {
 	inputWidth := max(4, min(frameWidth-24, 48))
 	w.name.SetWidth(inputWidth)
 	w.destination.SetWidth(inputWidth)
+	w.componentName.SetWidth(inputWidth)
 }
 
 func (w *wizard) input(service application.ProjectService) application.CreateProjectInput {
@@ -177,9 +195,15 @@ func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService)
 		w.clampPlanOffset()
 		return nil, false
 	}
+	if w.multiMode && w.step != projectInfoStep {
+		return w.updateComponents(msg, service)
+	}
 	switch w.step {
 	case projectInfoStep:
 		switch key {
+		case "f2":
+			w.multiMode = !w.multiMode
+			return nil, false
 		case "esc":
 			return nil, true
 		case "tab", "down":
@@ -196,7 +220,11 @@ func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService)
 			}
 			w.name.Blur()
 			w.destination.Blur()
-			w.step = backendStep
+			if w.multiMode {
+				w.step = componentListStep
+			} else {
+				w.step = backendStep
+			}
 			return nil, false
 		}
 		if w.focused == 0 {
@@ -319,6 +347,9 @@ func (w *wizard) created(msg projectCreatedMsg) {
 }
 
 func (w *wizard) lines(service application.ProjectService, contentWidth int) []string {
+	if w.multiMode && w.step != projectInfoStep {
+		return w.componentLines(service, contentWidth)
+	}
 	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7DD3FC"))
 	selected := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7DD3FC"))
 	muted := lipgloss.NewStyle().Foreground(lipgloss.Color("#94A3B8"))
@@ -337,7 +368,11 @@ func (w *wizard) lines(service application.ProjectService, contentWidth int) []s
 		} else {
 			pathPrefix = "› "
 		}
-		lines = append(lines, namePrefix+"Name: "+w.name.View(), "", pathPrefix+"Destination: "+w.destination.View())
+		mode := "Legacy categories"
+		if w.multiMode {
+			mode = "Named components"
+		}
+		lines = append(lines, namePrefix+"Name: "+w.name.View(), "", pathPrefix+"Destination: "+w.destination.View(), "", "Mode: "+mode+" (F2 to switch)")
 	case backendStep, frontendStep, databaseStep:
 		options := service.Technologies(stepCategory(w.step))
 		if w.step != backendStep {
@@ -456,7 +491,10 @@ func (w *wizard) footer() string {
 }
 
 func (w *wizard) compactLines(service application.ProjectService) []string {
-	lines := []string{"CREATE PROJECT: " + w.stepTitle()}
+	if w.multiMode && w.step != projectInfoStep {
+		return w.compactComponentLines(service)
+	}
+	lines := []string{"Create Project: " + w.stepTitle()}
 	switch w.step {
 	case projectInfoStep:
 		namePrefix, pathPrefix := "  ", "  "

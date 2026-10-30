@@ -124,6 +124,39 @@ func (s ProjectService) CreateProjectFromManifest(source, destination string) (C
 	return CreateProjectResult{Manifest: manifest, ManifestPath: path}, nil
 }
 
+// ValidateComponentsInput constructs a new-format manifest without writing it.
+func (s ProjectService) ValidateComponentsInput(name, destination string, components []project.Component) (project.Manifest, error) {
+	if _, err := s.ValidateProjectInfo(name, destination); err != nil {
+		return project.Manifest{}, err
+	}
+	manifest := project.Manifest{APIVersion: project.APIVersion, Kind: project.Kind,
+		Metadata: project.Metadata{Name: name}, Spec: project.Spec{Components: append([]project.Component{}, components...)}}
+	if err := manifest.Validate(); err != nil {
+		return project.Manifest{}, err
+	}
+	for _, component := range manifest.CanonicalComponents() {
+		if _, err := s.catalog.ValidateSelection(catalog.Category(component.Type), component.Technology); err != nil {
+			return project.Manifest{}, fmt.Errorf("component %q: %w", component.Name, err)
+		}
+	}
+	if err := s.catalog.ValidateCombination(selectionIDs(manifest)...); err != nil {
+		return project.Manifest{}, err
+	}
+	return manifest, nil
+}
+
+func (s ProjectService) CreateComponentProject(name, destination string, components []project.Component) (CreateProjectResult, error) {
+	manifest, err := s.ValidateComponentsInput(name, destination, components)
+	if err != nil {
+		return CreateProjectResult{}, err
+	}
+	path, err := project.Save(destination, manifest)
+	if err != nil {
+		return CreateProjectResult{}, err
+	}
+	return CreateProjectResult{Manifest: manifest, ManifestPath: path}, nil
+}
+
 // LoadProject validates both manifest structure and currently known technology IDs.
 func (s ProjectService) LoadProject(path string) (project.Manifest, error) {
 	manifest, err := project.Load(path)

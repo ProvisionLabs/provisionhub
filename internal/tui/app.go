@@ -93,7 +93,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
-		if m.nav.current == createProject && m.wizard.step == projectInfoStep {
+		if m.nav.current == createProject && (m.wizard.step == projectInfoStep || m.wizard.step == componentNameStep) {
 			cmd, back := m.wizard.update(msg, m.service)
 			if back {
 				m.nav.back()
