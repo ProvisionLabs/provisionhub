@@ -1,7 +1,9 @@
 package planning
 
 import (
+	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ProvisionLabs/provisionhub/internal/catalog"
@@ -65,8 +67,13 @@ func TestBuildNamesUnavailableComponentInstances(t *testing.T) {
 				{Name: "billing", Type: "backend", Technology: "nestjs"},
 				{Name: "api", Type: "backend", Technology: "nestjs"},
 			},
+			Connections: []project.Connection{{From: "api", To: "billing", Type: "http"}},
 		}}
 	plan := Build(manifest, catalog.Builtin())
+	encoded, err := json.Marshal(plan)
+	if err != nil || !strings.Contains(string(encoded), `"connections":[{"from":"api","to":"billing","type":"http"}]`) {
+		t.Fatalf("connection JSON = %s, %v", encoded, err)
+	}
 	if plan.Executable || len(plan.Components) != 2 || len(plan.Operations) != 2 || len(plan.Diagnostics) != 2 {
 		t.Fatalf("unexpected plan: %+v", plan)
 	}
