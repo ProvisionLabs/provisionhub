@@ -53,9 +53,9 @@ type Component struct {
 func (c Component) ID() string { return "component/" + c.Name }
 
 type Connection struct {
-	From string `yaml:"from"`
-	To   string `yaml:"to"`
-	Type string `yaml:"type"`
+	From string `yaml:"from" json:"from"`
+	To   string `yaml:"to" json:"to"`
+	Type string `yaml:"type" json:"type"`
 }
 
 func (s Spec) usesComponents() bool { return s.Components != nil || s.Connections != nil }
