@@ -18,7 +18,7 @@ func TestPlanPreviewRendersScrollableDiagnosticsWithoutWrites(t *testing.T) {
 	reviewWizard(t, m, destination)
 	press(m, 'p', "p")
 	initial := m.View().Content
-	for _, part := range []string{"Generation Plan", "my-app", "NestJS", "Next.js", "PostgreSQL", "Status: planned", "Execution: unavailable"} {
+	for _, part := range []string{"Generation Plan", "my-app", "component/api", "component/web", "Status: planned", "Execution: unavailable"} {
 		if !strings.Contains(initial, part) {
 			t.Errorf("preview missing %q: %s", part, initial)
 		}
@@ -30,7 +30,7 @@ func TestPlanPreviewRendersScrollableDiagnosticsWithoutWrites(t *testing.T) {
 			t.Fatal("scroll started an operation")
 		}
 	}
-	for _, part := range []string{"backend:nestjs", "frontend:nextjs", "database:postgresql", "Depends on: backend:nestjs", "missing_operation_provider", "No backend generator", "No frontend generator", "No database integration provider"} {
+	for _, part := range []string{"component/api", "component/web", "component/data", "missing_operation_provider", "No backend generator", "No frontend generator", "No database integration provider"} {
 		if !strings.Contains(seen.String(), part) {
 			t.Errorf("scroll could not reach %q", part)
 		}

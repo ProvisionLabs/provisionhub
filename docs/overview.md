@@ -23,7 +23,7 @@ The current built-in catalog offers NestJS, Spring Boot, or Go backends; Next.js
 5. Execute locally through plugins and external tools, with progress and actionable errors.
 6. Save enough project state to inspect and modify the project later.
 
-Configuration and plan review are implemented: TUI/CLI create a validated [project manifest](project-manifest.md) with legacy choices or [named components](architecture/components.md); `project plan --file` previews a saved manifest, and the TUI offers an optional preview before saving. Local plugins can contribute concrete file operations, and `project apply` or TUI confirmation can generate them. [Generation planning](generation-planning.md) remains side-effect-free. Opening existing projects in the TUI, connection execution, and infrastructure execution remain future work. A constructed plan is executable only if every selected capability is supported.
+Configuration and plan review are implemented: the TUI creates a validated [project manifest](project-manifest.md) with [named components](architecture/components.md), while the CLI also accepts legacy flags and manifests. `project plan --file` previews a saved manifest, and the TUI offers an optional preview before saving. Local plugins can contribute concrete file operations, and `project apply` or TUI confirmation can generate them. [Generation planning](generation-planning.md) remains side-effect-free. Opening existing projects in the TUI, connection execution, and infrastructure execution remain future work. A constructed plan is executable only if every selected capability is supported.
 
 ## Scope
 

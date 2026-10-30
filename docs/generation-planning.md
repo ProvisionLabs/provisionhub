@@ -43,7 +43,7 @@ At apply time the application reloads the project manifest and plugin files, reb
 
 ## TUI workflow
 
-On the project-information screen, F2 switches between the legacy category wizard and named-component mode. In named mode, `a` adds a component, `e` edits the selected component, `d` removes it, and Enter reviews the list. Names must be unique. Both modes use the same read-only plan preview and explicit generation action.
+After project information, the TUI opens the component list. `a` adds a component, `e` edits the selected component, `d` removes it, and Enter reviews the list. Names must be unique. The TUI uses the same read-only plan preview and explicit generation action for all named components; legacy manifests remain supported by CLI plan/apply.
 
 On Create Project's Review step, `p` previews the current unsaved configuration without writing. Enter/Esc leaves the preview. When the plan is executable, Review shows **Generate Project** and Enter explicitly authorizes manifest creation followed by file generation. The application checks that the plan is still current before saving and repeats checks before publishing. Otherwise Review shows **Save Manifest Only** and Enter saves just `provisionhub.yaml`. If generation fails after the manifest is saved, the result screen keeps it and reports the error; `p` opens a fresh plan, `g` performs read-only preflight, and `y` confirms a retry. Generated files appear only after successful application. Set `PROVISIONHUB_PLUGINS` to a local plugin directory before launching the TUI or place `plugins` beside the executable. Up/Down or `j`/`k` scrolls the preview; `q` quits outside text input. Keyboard quit is ignored while a generation command is in progress to avoid interrupting publication.
 

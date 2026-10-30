@@ -11,13 +11,22 @@ import (
 )
 
 func addNestComponent(t *testing.T, m *Model, name string) {
+	addComponent(t, m, name, 0, 1)
+}
+
+func addComponent(t *testing.T, m *Model, name string, categoryIndex, technologyIndex int) {
 	t.Helper()
 	press(m, 'a', "a")
 	if m.wizard.step != componentCategoryStep {
 		t.Fatal("add did not open category")
 	}
-	press(m, tea.KeyEnter, "") // Backend.
-	press(m, tea.KeyDown, "")  // NestJS after Go.
+	for range categoryIndex {
+		press(m, tea.KeyDown, "")
+	}
+	press(m, tea.KeyEnter, "")
+	for range technologyIndex {
+		press(m, tea.KeyDown, "")
+	}
 	press(m, tea.KeyEnter, "")
 	typeText(m, name)
 	press(m, tea.KeyEnter, "")
@@ -32,10 +41,9 @@ func TestMultiComponentWizardAddEditRemovePreviewAndGenerate(t *testing.T) {
 	typeText(m, "multi-demo")
 	press(m, tea.KeyEnter, "")
 	typeText(m, destination)
-	press(m, tea.KeyF2, "")
 	press(m, tea.KeyEnter, "")
-	if m.wizard.step != componentListStep || !m.wizard.multiMode {
-		t.Fatalf("multi-component mode did not open: %+v", m.wizard)
+	if m.wizard.step != componentListStep {
+		t.Fatalf("component list did not open: %+v", m.wizard)
 	}
 	press(m, tea.KeyEnter, "")
 	if !strings.Contains(m.wizard.err, "at least one") {

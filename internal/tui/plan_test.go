@@ -11,17 +11,15 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/ProvisionLabs/provisionhub/internal/planning"
+	"github.com/ProvisionLabs/provisionhub/internal/project"
 )
 
 func reviewWizard(t *testing.T, m *Model, destination string) {
 	t.Helper()
 	openWizard(m, "my-app", destination)
-	press(m, tea.KeyDown, "") // NestJS.
-	press(m, tea.KeyEnter, "")
-	press(m, tea.KeyDown, "") // Next.js.
-	press(m, tea.KeyEnter, "")
-	press(m, tea.KeyDown, "")
-	press(m, tea.KeyDown, "") // PostgreSQL.
+	addNestComponent(t, m, "api")
+	addComponent(t, m, "web", 1, 0)
+	addComponent(t, m, "data", 2, 1)
 	press(m, tea.KeyEnter, "")
 	if m.wizard.step != reviewStep {
 		t.Fatalf("review step = %v; %s", m.wizard.step, m.wizard.err)
@@ -33,14 +31,14 @@ func TestWizardPlanPreviewPreservesSelectionsAndSaveBehavior(t *testing.T) {
 	root := t.TempDir()
 	destination := filepath.Join(root, "new project café")
 	reviewWizard(t, m, destination)
-	selected := m.wizard.selected
+	selected := append([]project.Component(nil), m.wizard.components...)
 	if cmd := press(m, 'p', "p"); cmd != nil {
 		t.Fatal("preview must not start an execution/save command")
 	}
 	if !m.wizard.preview || m.wizard.plan.Status != planning.StatusPlanned || m.wizard.plan.Executable {
 		t.Fatalf("preview = %+v", m.wizard)
 	}
-	manifest, _, err := m.service.ValidateInput(m.wizard.input(m.service))
+	manifest, err := m.service.ValidateComponentsInput(m.wizard.name.Value(), m.wizard.destination.Value(), m.wizard.components)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +50,7 @@ func TestWizardPlanPreviewPreservesSelectionsAndSaveBehavior(t *testing.T) {
 		if _, cmd := m.Update(key); cmd != nil {
 			t.Fatal("leaving preview must not save")
 		}
-		if m.wizard.preview || m.wizard.step != reviewStep || m.wizard.selected != selected {
+		if m.wizard.preview || m.wizard.step != reviewStep || !reflect.DeepEqual(m.wizard.components, selected) {
 			t.Fatal("leaving preview lost review/selections")
 		}
 		if _, err := os.Stat(destination); !errors.Is(err, fs.ErrNotExist) {
@@ -61,8 +59,8 @@ func TestWizardPlanPreviewPreservesSelectionsAndSaveBehavior(t *testing.T) {
 		press(m, 'p', "p")
 	}
 	press(m, tea.KeyEscape, "") // Preview -> Review.
-	press(m, tea.KeyEscape, "") // Review -> database selection.
-	if m.wizard.step != databaseStep || m.wizard.selected != selected {
+	press(m, tea.KeyEscape, "") // Review -> component list.
+	if m.wizard.step != componentListStep || !reflect.DeepEqual(m.wizard.components, selected) {
 		t.Fatal("back to configuration lost selections")
 	}
 	press(m, tea.KeyEnter, "")

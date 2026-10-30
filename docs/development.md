@@ -28,13 +28,12 @@ go build ./cmd/provisionhub
 
 ## Current interface
 
-The home screen lists Create Project, Open Existing Project, Plugin Marketplace, and Settings. Create Project starts with project information. The default legacy flow selects backend, optional frontend/database, review, and result. Press F2 on the information screen for named-component mode: add, edit, or remove any number of components before review. Review offers an optional, scrollable generation-plan preview before saving. The other three screens remain explanatory placeholders.
+The home screen lists Create Project, Open Existing Project, Plugin Marketplace, and Settings. Create Project collects project information, then opens the named-component list. Add, edit, or remove components before review. Review offers an optional, scrollable generation-plan preview before saving. The other three screens remain explanatory placeholders. Legacy manifests and CLI flags remain supported outside the TUI.
 
 | Key | Action |
 | --- | --- |
 | Up/Down or `k`/`j` | Move through Home and technology choices |
 | Tab or Up/Down | Move between name and destination fields |
-| F2 on project information | Switch between legacy and named-component mode |
 | `a`, `e`, `d` on component list | Add, edit, or remove the selected component |
 | Enter | Select or advance; create the manifest on Review; return to Review from plan preview without saving |
 | `p` on Review | Open unsaved configuration preview; `p` in preview returns to Review |

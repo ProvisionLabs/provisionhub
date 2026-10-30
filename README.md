@@ -8,7 +8,7 @@ Plugins are intended to provide templates, technology integrations, and provisio
 
 ## Current status
 
-Running `provisionhub` opens a TUI with a functional **Create Project** wizard. It collects a name and destination, supports legacy backend/frontend/database choices or multiple named components, reviews the choices, optionally previews a generation plan, and saves `provisionhub.yaml` only on explicit confirmation. The CLI can create either manifest format without a terminal, list built-in technologies, and preview a saved manifest as text or JSON. `version` and `--help` remain available.
+Running `provisionhub` opens a TUI with a **Create Project** wizard for multiple named components. It collects a name and destination, lets you add components, previews a generation plan, and saves `provisionhub.yaml` only on explicit confirmation. The CLI can still create either manifest format without a terminal, list built-in technologies, and preview a saved manifest as text or JSON. `version` and `--help` remain available.
 
 Open Existing Project, Plugin Marketplace, and Settings remain explanatory screens. The built-in catalog defines valid **configuration choices**; a matching local plugin is required for generation. Without plugins, plans retain unavailable-capability diagnostics. Official NestJS and Next.js generators live in the separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins). Infrastructure provisioning, CI/CD generation, plugin installation, and settings persistence are not implemented.
 
@@ -33,9 +33,9 @@ CLI plan/apply commands continue to use the explicit `--plugins` flag.
 
 ### Create a project configuration
 
-From Home, choose **Create Project**. Enter a lowercase project name and destination, choose a backend, optionally choose a frontend and database, then review and confirm. The result screen appears only after `provisionhub.yaml` has been saved. An existing manifest is never overwritten.
+From Home, choose **Create Project**. Enter a lowercase project name and destination, add at least one named component, then review and confirm. The result screen appears only after `provisionhub.yaml` has been saved. An existing manifest is never overwritten.
 
-Press F2 on project information to choose named-component mode. There, `a` adds a component, `e` edits the selected component, and `d` removes it. Multiple components may use the same technology. The manifest stays at the project root as the `plan`/`apply` anchor; generated applications live in isolated component directories.
+On the component list, `a` adds a component, `e` edits the selected component, and `d` removes it. Multiple components may use the same technology. The manifest stays at the project root as the `plan`/`apply` anchor; generated applications live in isolated component directories.
 
 The equivalent non-interactive command is:
 
