@@ -76,6 +76,44 @@ func TestProjectInitOptionalCategories(t *testing.T) {
 	}
 }
 
+func TestProjectInitFromMultiComponentManifest(t *testing.T) {
+	base := t.TempDir()
+	sourceDir := filepath.Join(base, "source")
+	manifest := project.Manifest{APIVersion: project.APIVersion, Kind: project.Kind,
+		Metadata: project.Metadata{Name: "multi-service-demo"}, Spec: project.Spec{Components: []project.Component{
+			{Name: "web", Type: "frontend", Technology: "nextjs"},
+			{Name: "api", Type: "backend", Technology: "nestjs"},
+			{Name: "billing", Type: "backend", Technology: "nestjs"},
+		}}}
+	source, err := project.Save(sourceDir, manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	destination := filepath.Join(base, "output")
+	output, err := executeCLI("project", "init", "--from", source, "--path", destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	created := filepath.Join(destination, project.ManifestName)
+	if strings.TrimSpace(output) != created {
+		t.Fatalf("output = %q", output)
+	}
+	copy, err := project.Load(created)
+	if err != nil || len(copy.Spec.Components) != 3 || copy.Metadata.Name != "multi-service-demo" {
+		t.Fatalf("copied manifest = %+v, %v", copy, err)
+	}
+	plan, err := executeCLI("project", "plan", "--file", created)
+	if err != nil || !strings.Contains(plan, "component/api") || !strings.Contains(plan, "component/billing") || !strings.Contains(plan, "component/web") {
+		t.Fatalf("component plan = %s, %v", plan, err)
+	}
+	if _, err := executeCLI("project", "init", "--from", source, "--path", destination); err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("overwritten manifest: %v", err)
+	}
+	if _, err := executeCLI("project", "init", "--from", source, "--path", filepath.Join(base, "conflict"), "--backend", "nestjs"); err == nil || !strings.Contains(err.Error(), "cannot be combined") {
+		t.Fatalf("mixed flags accepted: %v", err)
+	}
+}
+
 func TestTechnologiesListCommand(t *testing.T) {
 	output, err := executeCLI("technologies", "list")
 	if err != nil {

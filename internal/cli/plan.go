@@ -51,6 +51,12 @@ func formatPlan(plan planning.Plan) string {
 		execution = "available after explicit approval"
 	}
 	fmt.Fprintf(&out, "ProvisionHub — Generation Plan\n\nProject: %s\nManifest version: %s\nStatus: %s\nExecution: %s\n", plan.ProjectName, plan.ManifestVersion, plan.Status, execution)
+	if len(plan.Components) > 0 {
+		fmt.Fprintln(&out, "\nComponents:")
+		for _, component := range plan.Components {
+			fmt.Fprintf(&out, "  %s: %s (%s, %s)\n", component.ID, component.Name, component.Type, component.Technology)
+		}
+	}
 	fmt.Fprintln(&out, "\nSelected Technologies:")
 	for _, technology := range plan.Technologies {
 		fmt.Fprintf(&out, "  %s: %s (%s)\n", technology.Category, technology.Name, technology.ID)

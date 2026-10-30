@@ -110,6 +110,20 @@ func (s ProjectService) CreateProject(input CreateProjectInput) (CreateProjectRe
 	return CreateProjectResult{Manifest: manifest, ManifestPath: path}, nil
 }
 
+// CreateProjectFromManifest copies a validated configuration into a new project
+// directory. It preserves the source's name and never overwrites a manifest.
+func (s ProjectService) CreateProjectFromManifest(source, destination string) (CreateProjectResult, error) {
+	manifest, err := s.LoadProject(source)
+	if err != nil {
+		return CreateProjectResult{}, err
+	}
+	path, err := project.Save(destination, manifest)
+	if err != nil {
+		return CreateProjectResult{}, err
+	}
+	return CreateProjectResult{Manifest: manifest, ManifestPath: path}, nil
+}
+
 // LoadProject validates both manifest structure and currently known technology IDs.
 func (s ProjectService) LoadProject(path string) (project.Manifest, error) {
 	manifest, err := project.Load(path)
