@@ -15,6 +15,12 @@ func (w *wizard) planLines(width int) []string {
 		"Execution: " + planExecutionLabel(w.plan.Executable),
 		"", "Selected Technologies:",
 	}
+	if len(w.plan.Components) > 0 {
+		lines = append(lines, "", "Components:")
+		for _, component := range w.plan.Components {
+			lines = append(lines, fmt.Sprintf("  %s: %s (%s)", component.ID, component.Name, component.Technology))
+		}
+	}
 	for _, technology := range w.plan.Technologies {
 		lines = append(lines, fmt.Sprintf("  %s: %s (%s)", technology.Category, technology.Name, technology.ID))
 	}
