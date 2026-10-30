@@ -53,7 +53,7 @@ func TestPlanManifestRetainsExplicitConflictValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	manifest := project.Manifest{APIVersion: project.APIVersion, Kind: project.Kind, Metadata: project.Metadata{Name: "demo"}, Spec: project.Spec{
-		Backend: project.TechnologySelection{Technology: "go"}, Database: &project.TechnologySelection{Technology: "mysql"},
+		Backend: &project.TechnologySelection{Technology: "go"}, Database: &project.TechnologySelection{Technology: "mysql"},
 	}}
 	service := ProjectService{catalog: c}
 	plan, err := service.PlanManifest(manifest)

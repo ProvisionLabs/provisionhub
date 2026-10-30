@@ -11,7 +11,7 @@ import (
 
 func TestApplyProjectRechecksManifestAndPluginAfterReview(t *testing.T) {
 	base := t.TempDir()
-	file, err := project.Save(filepath.Join(base, "demo"), project.Manifest{APIVersion: project.APIVersion, Kind: project.Kind, Metadata: project.Metadata{Name: "demo"}, Spec: project.Spec{Backend: project.TechnologySelection{Technology: "nestjs"}}})
+	file, err := project.Save(filepath.Join(base, "demo"), project.Manifest{APIVersion: project.APIVersion, Kind: project.Kind, Metadata: project.Metadata{Name: "demo"}, Spec: project.Spec{Backend: &project.TechnologySelection{Technology: "nestjs"}}})
 	if err != nil {
 		t.Fatal(err)
 	}

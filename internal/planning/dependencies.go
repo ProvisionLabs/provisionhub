@@ -116,7 +116,7 @@ func finalizePlan(plan Plan) Plan {
 	}
 	slices.SortFunc(plan.Diagnostics, func(a, b Diagnostic) int {
 		key := func(d Diagnostic) string {
-			return strings.Join([]string{string(d.Severity), string(d.Code), d.OperationID, d.Technology, d.Field, d.Message}, "\x00")
+			return strings.Join([]string{string(d.Severity), string(d.Code), d.OperationID, d.ComponentID, d.Technology, d.Field, d.Message}, "\x00")
 		}
 		return strings.Compare(key(a), key(b))
 	})
