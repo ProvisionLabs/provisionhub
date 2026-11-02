@@ -1,0 +1,33 @@
+// Package settings defines non-sensitive application preferences, separate from projects.
+package settings
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+type Values struct {
+	Workspace         string `json:"workspace"`
+	PreferredProvider string `json:"preferredProvider"`
+}
+
+// Empty values mean no preference, preserving the existing local/offline workflow.
+func (v Values) Validate() error {
+	if v.Workspace != "" {
+		if !filepath.IsAbs(v.Workspace) || strings.ContainsAny(v.Workspace, "\x00\r\n") {
+			return errors.New("workspace must be an absolute local directory path")
+		}
+		info, err := os.Stat(v.Workspace)
+		if err != nil || !info.IsDir() {
+			return errors.New("workspace must be an existing accessible directory")
+		}
+	}
+	switch v.PreferredProvider {
+	case "", "github", "gitlab", "bitbucket":
+	default:
+		return errors.New("preferred provider must be github, gitlab, bitbucket, or empty")
+	}
+	return nil
+}
