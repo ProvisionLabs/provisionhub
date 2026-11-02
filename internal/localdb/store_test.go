@@ -1,6 +1,7 @@
 package localdb
 
 import (
+	"bytes"
 	"context"
 	"github.com/ProvisionLabs/provisionhub/internal/settings"
 	"os"
@@ -100,5 +101,45 @@ func TestCorruptAndInaccessibleDatabase(t *testing.T) {
 	if s, err := Open(context.Background(), filepath.Join(filename, "child.db")); err == nil {
 		s.Close()
 		t.Fatal("accepted inaccessible directory")
+	}
+}
+
+func TestReopenDoesNotWriteAndInvalidValuesCanBeRepaired(t *testing.T) {
+	ctx := context.Background()
+	filename := filepath.Join(t.TempDir(), "app.db")
+	s, err := Open(ctx, filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	before, err := os.ReadFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(ctx, filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	after, err := os.ReadFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("reopening database changed bytes")
+	}
+	s, err = Open(ctx, filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err := s.db.Exec("INSERT INTO settings(key,value) VALUES(?,?)", "preferred_provider", "invalid-provider"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.LoadSettings(ctx); err == nil {
+		t.Fatal("accepted invalid stored preferences")
+	}
+	if err := s.SaveSettings(ctx, settings.Values{}); err != nil {
+		t.Fatal(err)
 	}
 }

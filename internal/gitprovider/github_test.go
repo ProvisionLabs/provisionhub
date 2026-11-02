@@ -131,3 +131,25 @@ func TestAccountAndRefreshFailuresAreSanitized(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestUntrustedVerificationURLsAndLocalExpiry(t *testing.T) {
+	verification := "https://attacker.invalid/"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `{"device_code":"private","user_code":"USER-CODE","verification_uri":%q,"expires_in":900,"interval":5}`, verification)
+	}))
+	defer server.Close()
+	g := NewGitHub("test")
+	g.oauthURL = server.URL
+	if _, err := g.Begin(context.Background()); !errors.Is(err, ErrUnavailable) {
+		t.Fatal("accepted untrusted verification URI", err)
+	}
+	verification = "https://github.com/login/device"
+	g.wait = func(context.Context, time.Duration) error { return context.DeadlineExceeded }
+	auth, err := g.Begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := auth.Wait(context.Background()); !errors.Is(err, ErrExpired) {
+		t.Fatal("local expiration not handled", err)
+	}
+}

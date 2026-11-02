@@ -100,7 +100,7 @@ func (g *GitHub) Begin(ctx context.Context) (Authorization, error) {
 		return Authorization{}, ErrUnavailable
 	}
 	expires := time.Now().Add(time.Duration(result.ExpiresIn) * time.Second)
-	return Authorization{UserCode: result.UserCode, VerificationURL: result.VerificationURI, ExpiresAt: expires, complete: func(ctx context.Context) (credentials.Secret, error) {
+	return Authorization{Method: "device_code", UserCode: result.UserCode, VerificationURL: result.VerificationURI, ExpiresAt: expires, complete: func(ctx context.Context) (credentials.Secret, error) {
 		pollCtx, cancel := context.WithDeadline(ctx, expires)
 		defer cancel()
 		interval := time.Duration(result.Interval) * time.Second

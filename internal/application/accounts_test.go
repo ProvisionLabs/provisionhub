@@ -196,3 +196,36 @@ func TestCredentialErrorsAndMissingCredential(t *testing.T) {
 		t.Fatal(statuses)
 	}
 }
+
+func TestDisconnectionFailuresNeverClaimCredentialRemoval(t *testing.T) {
+	ctx := context.Background()
+	db, err := localdb.Open(ctx, filepath.Join(t.TempDir(), "app.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	vault := &memoryVault{values: map[string]credentials.Secret{}}
+	service := &AccountService{Repository: db, Credentials: vault, Provider: &testProvider{}}
+	if err := service.Connect(ctx, credentials.Secret{AccessToken: "temporary-test-value"}); err != nil {
+		t.Fatal(err)
+	}
+	accounts, _ := db.Accounts(ctx)
+	id := accounts[0].ID
+	service.Repository = failRepository{AccountRepository: db, mark: true}
+	if err := service.Disconnect(ctx, id); err == nil || len(vault.values) != 1 {
+		t.Fatal("failed metadata marker removed credential")
+	}
+	service.Repository = db
+	vault.failDelete = true
+	if err := service.Disconnect(ctx, id); !errors.Is(err, credentials.ErrUnavailable) {
+		t.Fatal(err)
+	}
+	statuses, _ := service.Status(ctx, true)
+	if statuses[0].State != gitprovider.NotConnected || len(vault.values) != 1 {
+		t.Fatal("failed deletion falsely connected", statuses)
+	}
+	vault.failDelete = false
+	if err := service.Disconnect(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+}
