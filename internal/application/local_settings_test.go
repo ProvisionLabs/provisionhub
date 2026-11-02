@@ -3,6 +3,8 @@ package application
 import (
 	"context"
 	"github.com/ProvisionLabs/provisionhub/internal/credentials"
+	"github.com/ProvisionLabs/provisionhub/internal/gitprovider"
+	"github.com/ProvisionLabs/provisionhub/internal/localdb"
 	"github.com/ProvisionLabs/provisionhub/internal/settings"
 	"os"
 	"path/filepath"
@@ -30,5 +32,35 @@ func TestLocalSettingsLazinessAndRestart(t *testing.T) {
 	}
 	if directory, err := restarted.DefaultWorkspace(ctx); err != nil || directory != values.Workspace {
 		t.Fatal(directory, err)
+	}
+}
+
+type forbiddenVault struct{}
+
+func (forbiddenVault) Get(string) (credentials.Secret, error) {
+	panic("general preferences must not read credentials")
+}
+func (forbiddenVault) Set(string, credentials.Secret) error {
+	panic("general preferences must not write credentials")
+}
+func (forbiddenVault) Delete(string) error { panic("general preferences must not delete credentials") }
+func TestGeneralPreferencesDoNotRequireCredentialVault(t *testing.T) {
+	ctx := context.Background()
+	filename := filepath.Join(t.TempDir(), "app.db")
+	db, err := localdb.Open(ctx, filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.PutAccount(ctx, gitprovider.Account{ID: "metadata-only", Provider: "github", InstanceURL: "https://github.com", SubjectID: "1", Username: "sample", CredentialRef: "missing"}); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	backend := &LocalSettings{Path: filename, Vault: forbiddenVault{}}
+	values, statuses, err := backend.Load(ctx)
+	if err != nil || len(statuses) != 1 || statuses[0].State != gitprovider.Unverified {
+		t.Fatal(values, statuses, err)
+	}
+	if err := backend.Save(ctx, settings.Values{PreferredProvider: "github"}); err != nil {
+		t.Fatal(err)
 	}
 }
