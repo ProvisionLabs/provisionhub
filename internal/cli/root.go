@@ -22,5 +22,6 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(newVersionCommand())
 	root.AddCommand(newProjectCommand())
 	root.AddCommand(newTechnologiesCommand())
+	root.AddCommand(newSettingsCommand())
 	return root
 }

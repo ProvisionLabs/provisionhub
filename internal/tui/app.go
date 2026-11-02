@@ -1,9 +1,11 @@
 package tui
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
@@ -30,6 +32,12 @@ type screenText struct {
 	description string
 }
 
+type workspacePreferenceMsg struct {
+	request   uint64
+	directory string
+	err       error
+}
+
 var secondaryScreens = map[screen]screenText{
 	openProject: {
 		title:       "Open Existing Project",
@@ -41,26 +49,28 @@ var secondaryScreens = map[screen]screenText{
 	},
 	settings: {
 		title:       "Settings",
-		description: "Application settings are planned. No settings are stored yet.",
+		description: "Local preferences and Git provider connections.",
 	},
 }
 
 // Model contains terminal presentation state; application metadata comes from
 // the shared application layer.
 type Model struct {
-	info    application.AppInfo
-	service application.ProjectService
-	nav     navigation
-	wizard  wizard
-	help    help.Model
-	width   int
-	height  int
+	info             application.AppInfo
+	service          application.ProjectService
+	nav              navigation
+	wizard           wizard
+	help             help.Model
+	width            int
+	height           int
+	preferences      preferences
+	workspaceRequest uint64
 }
 
 func NewModel(info application.AppInfo) *Model {
 	h := help.New()
 	h.SetWidth(48)
-	return &Model{info: info, service: application.NewProjectService(), help: h, width: 80, height: 24}
+	return &Model{info: info, service: application.NewProjectService(), help: h, width: 80, height: 24, preferences: newPreferences(application.NewLocalSettings())}
 }
 
 // NewModelWithPlugins loads an explicit local plugin directory for this session.
@@ -77,6 +87,23 @@ func NewModelWithPlugins(info application.AppInfo, directory string) (*Model, er
 func (m *Model) Init() tea.Cmd { return nil }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if result, ok := msg.(workspacePreferenceMsg); ok {
+		if result.request == m.workspaceRequest && m.nav.current == createProject && m.wizard.step == projectInfoStep {
+			if result.err != nil {
+				m.wizard.err = "Workspace preference unavailable; enter destination manually."
+			} else {
+				m.wizard.defaultWorkspace = result.directory
+				if m.wizard.focused == 1 && m.wizard.destination.Value() == "" && m.wizard.name.Value() != "" && result.directory != "" {
+					m.wizard.destination.SetValue(filepath.Join(result.directory, m.wizard.name.Value()))
+				}
+			}
+		}
+		return m, nil
+	}
+	if _, ok := msg.(preferencesMsg); ok {
+		cmd, _ := m.preferences.update(msg)
+		return m, cmd
+	}
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -91,7 +118,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if msg.String() == "ctrl+c" {
+			m.preferences.stop()
 			return m, tea.Quit
+		}
+		if m.nav.current == settings {
+			cmd, back := m.preferences.update(msg)
+			if back {
+				m.nav.back()
+			}
+			return m, cmd
 		}
 		if m.nav.current == createProject && (m.wizard.step == projectInfoStep || m.wizard.step == componentNameStep) {
 			cmd, back := m.wizard.update(msg, m.service)
@@ -117,11 +152,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.nav.move(1)
 		case key.Matches(msg, keys.selectItem):
 			m.nav.selectItem()
+			if m.nav.current == settings {
+				return m, m.preferences.load()
+			}
 			if m.nav.current == createProject {
 				var cmd tea.Cmd
 				m.wizard, cmd = newWizard()
 				m.wizard.resize(m.width, m.height)
-				return m, cmd
+				m.workspaceRequest++
+				request := m.workspaceRequest
+				return m, tea.Batch(cmd, func() tea.Msg {
+					ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+					defer cancel()
+					directory, err := application.NewLocalSettings().DefaultWorkspace(ctx)
+					return workspacePreferenceMsg{request: request, directory: directory, err: err}
+				})
 			}
 		}
 	}
@@ -130,6 +175,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) View() tea.View {
 	width, height := max(1, m.width), max(1, m.height)
+	if m.nav.current == settings {
+		view := tea.NewView(m.preferences.view(width, height))
+		view.AltScreen = true
+		return view
+	}
 	if m.nav.current == createProject && m.wizard.preview {
 		view := tea.NewView(m.wizard.planView(width, height))
 		view.AltScreen = true
@@ -234,6 +284,7 @@ func Run(info application.AppInfo) error {
 	if err != nil {
 		return err
 	}
+	defer model.preferences.stop()
 	_, err = tea.NewProgram(model).Run()
 	return err
 }
