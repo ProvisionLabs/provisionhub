@@ -84,6 +84,12 @@ func Open(ctx context.Context, filename string) (*Store, error) {
 // Rollback journal is intentional: WAL is not assumed safe on network filesystems.
 var migrations = []string{
 	`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);`,
+	`CREATE TABLE git_accounts (
+ id TEXT PRIMARY KEY, provider TEXT NOT NULL, instance_url TEXT NOT NULL,
+ subject_id TEXT NOT NULL, username TEXT NOT NULL, credential_ref TEXT NOT NULL,
+ disconnected INTEGER NOT NULL DEFAULT 0 CHECK(disconnected IN (0,1)),
+ created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
+ UNIQUE(provider,instance_url,subject_id));`,
 }
 
 func migrate(ctx context.Context, db *sql.DB, steps []string) error {
