@@ -47,6 +47,7 @@ type preferencesMsg struct {
 	statuses   []gitprovider.Status
 	auth       gitprovider.Authorization
 	err        error
+	feedback   string
 }
 
 func newPreferences(backend settingsBackend) preferences {
@@ -112,6 +113,17 @@ func (p *preferences) update(msg tea.Msg) (tea.Cmd, bool) {
 			}
 			p.feedback = result.err.Error()
 			p.auth = gitprovider.Authorization{}
+			if result.kind == "disconnect" || result.kind == "complete" {
+				for index := range p.statuses {
+					p.statuses[index].State = gitprovider.Unverified
+				}
+				ctx, generation := p.start()
+				backend, feedback := p.backend, p.feedback
+				return func() tea.Msg {
+					statuses, err := backend.Status(ctx, false)
+					return preferencesMsg{generation: generation, kind: "status", statuses: statuses, err: err, feedback: feedback}
+				}, false
+			}
 			return nil, false
 		}
 		switch result.kind {
@@ -140,6 +152,9 @@ func (p *preferences) update(msg tea.Msg) (tea.Cmd, bool) {
 		case "status":
 			p.statuses = result.statuses
 			p.feedback = "Account status loaded."
+			if result.feedback != "" {
+				p.feedback = result.feedback
+			}
 			p.selected = min(p.selected, max(0, len(p.statuses)-1))
 		case "browser":
 			p.feedback = "Verification page opened."

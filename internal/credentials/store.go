@@ -4,8 +4,9 @@ package credentials
 import (
 	"encoding/json"
 	"errors"
-	"github.com/zalando/go-keyring"
 	"time"
+
+	"github.com/zalando/go-keyring"
 )
 
 var ErrMissing = errors.New("credential is missing")
@@ -27,12 +28,30 @@ type Store interface {
 	Delete(string) error
 }
 
-type Native struct{}
+type vaultBackend interface {
+	Get(string, string) (string, error)
+	Set(string, string, string) error
+	Delete(string, string) error
+}
+type systemVault struct{}
+
+func (systemVault) Get(service, ref string) (string, error) { return keyring.Get(service, ref) }
+func (systemVault) Set(service, ref, value string) error    { return keyring.Set(service, ref, value) }
+func (systemVault) Delete(service, ref string) error        { return keyring.Delete(service, ref) }
+
+type Native struct{ backend vaultBackend }
+
+func (n Native) vault() vaultBackend {
+	if n.backend != nil {
+		return n.backend
+	}
+	return systemVault{}
+}
 
 const service = "ProvisionHub.git-accounts"
 
-func (Native) Get(ref string) (Secret, error) {
-	data, err := keyring.Get(service, ref)
+func (n Native) Get(ref string) (Secret, error) {
+	data, err := n.vault().Get(service, ref)
 	if errors.Is(err, keyring.ErrNotFound) {
 		return Secret{}, ErrMissing
 	}
@@ -45,18 +64,21 @@ func (Native) Get(ref string) (Secret, error) {
 	}
 	return secret, nil
 }
-func (Native) Set(ref string, secret Secret) error {
+func (n Native) Set(ref string, secret Secret) error {
+	if secret.AccessToken == "" {
+		return ErrMissing
+	}
 	data, err := json.Marshal(secret)
 	if err != nil {
 		return ErrUnavailable
 	}
-	if err := keyring.Set(service, ref, string(data)); err != nil {
+	if err := n.vault().Set(service, ref, string(data)); err != nil {
 		return ErrUnavailable
 	}
 	return nil
 }
-func (Native) Delete(ref string) error {
-	if err := keyring.Delete(service, ref); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+func (n Native) Delete(ref string) error {
+	if err := n.vault().Delete(service, ref); err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		return ErrUnavailable
 	}
 	return nil

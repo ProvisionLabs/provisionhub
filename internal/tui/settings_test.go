@@ -166,3 +166,18 @@ func TestSettingsNarrowLayoutsAndWorkspaceDefault(t *testing.T) {
 		t.Fatal("workspace default not used")
 	}
 }
+
+func TestSettingsDisconnectErrorRefreshesStaleConnectedState(t *testing.T) {
+	m, backend := settingsModel(t)
+	press(m, tea.KeyF2, "")
+	m.preferences.statuses = []gitprovider.Status{{Account: gitprovider.Account{ID: "test-id", Username: "sample"}, State: gitprovider.Connected}}
+	backend.statuses = []gitprovider.Status{{Account: gitprovider.Account{ID: "test-id", Username: "sample", Disconnected: true}, State: gitprovider.NotConnected}}
+	_, refresh := m.Update(preferencesMsg{generation: m.preferences.generation, kind: "disconnect", err: errors.New("credential removed; metadata cleanup failed")})
+	if m.preferences.statuses[0].State == gitprovider.Connected {
+		t.Fatal("stale connected state remained after disconnect failure")
+	}
+	m.Update(refresh())
+	if m.preferences.statuses[0].State != gitprovider.NotConnected || !strings.Contains(m.preferences.feedback, "metadata cleanup failed") {
+		t.Fatal("lost cleanup failure or disconnected state")
+	}
+}

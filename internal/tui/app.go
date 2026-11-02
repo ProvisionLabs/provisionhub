@@ -109,6 +109,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.help.SetWidth(max(1, min(msg.Width-4, 54)-6))
 		m.wizard.resize(msg.Width, msg.Height)
+		m.preferences.workspace.SetWidth(max(1, min(46, msg.Width-4)))
+		m.preferences.provider.SetWidth(max(1, min(40, msg.Width-4)))
 	case projectCreatedMsg:
 		m.wizard.created(msg)
 	case projectAppliedMsg:
@@ -168,6 +170,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return workspacePreferenceMsg{request: request, directory: directory, err: err}
 				})
 			}
+		}
+	default:
+		if m.nav.current == settings {
+			cmd, _ := m.preferences.update(msg)
+			return m, cmd
 		}
 	}
 	return m, nil

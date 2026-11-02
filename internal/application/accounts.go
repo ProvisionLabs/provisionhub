@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"github.com/ProvisionLabs/provisionhub/internal/credentials"
 	"github.com/ProvisionLabs/provisionhub/internal/gitprovider"
 	"sync"
@@ -43,6 +44,12 @@ func (s *AccountService) Complete(ctx context.Context, auth gitprovider.Authoriz
 
 // Connect receives an ephemeral secret; only its random vault reference enters SQL.
 func (s *AccountService) Connect(ctx context.Context, secret credentials.Secret) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if secret.AccessToken == "" {
+		return gitprovider.ErrInvalid
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	identity, err := s.Provider.Account(ctx, secret)
@@ -71,6 +78,9 @@ func (s *AccountService) Connect(ctx context.Context, secret credentials.Secret)
 	account.CredentialRef = "git-" + hex.EncodeToString(random[:])
 	if account.ID == "" {
 		account.ID = account.CredentialRef
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if err := s.Credentials.Set(account.CredentialRef, secret); err != nil {
 		return credentials.ErrUnavailable
@@ -133,6 +143,8 @@ func (s *AccountService) Status(ctx context.Context, validate bool) ([]gitprovid
 				}
 			}
 			switch {
+			case errors.Is(err, gitprovider.ErrNotConfigured):
+				status.State = gitprovider.NotConfigured
 			case errors.Is(err, credentials.ErrUnavailable):
 				status.State = gitprovider.StorageUnavailable
 			case errors.Is(err, gitprovider.ErrInvalid):
@@ -163,7 +175,7 @@ func (s *AccountService) Disconnect(ctx context.Context, id string) error {
 				return errors.New("disconnect metadata update failed; credential retained")
 			}
 			if err := s.Credentials.Delete(a.CredentialRef); err != nil {
-				return credentials.ErrUnavailable
+				return fmt.Errorf("account marked disconnected; credential removal failed, retry disconnect: %w", credentials.ErrUnavailable)
 			}
 			if err := s.Repository.DeleteAccount(ctx, id); err != nil {
 				return errors.New("credential removed; disconnected metadata cleanup failed")

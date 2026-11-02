@@ -21,6 +21,10 @@ type Descriptor struct {
 	Methods         []string
 }
 type Authorization struct {
+	// Method identifies the provider-specific flow. UserCode is optional and
+	// applies only to device authorization; other adapters can complete browser
+	// or other supported flows behind the same cancellable Wait contract.
+	Method          string
 	UserCode        string
 	VerificationURL string
 	ExpiresAt       time.Time
