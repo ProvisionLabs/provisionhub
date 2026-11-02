@@ -64,7 +64,7 @@ func (s *LocalSettings) open(ctx context.Context) (*localdb.Store, *AccountServi
 }
 func (s *LocalSettings) Configured() bool { return gitprovider.NewGitHub(s.ClientID).Configured() }
 func (s *LocalSettings) Load(ctx context.Context) (settings.Values, []gitprovider.Status, error) {
-	db, accounts, err := s.open(ctx)
+	db, _, err := s.open(ctx)
 	if err != nil {
 		return settings.Values{}, nil, err
 	}
@@ -73,8 +73,19 @@ func (s *LocalSettings) Load(ctx context.Context) (settings.Values, []gitprovide
 	if err != nil {
 		return values, nil, err
 	}
-	statuses, err := accounts.Status(ctx, false)
-	return values, statuses, err
+	accounts, err := db.Accounts(ctx)
+	if err != nil {
+		return values, nil, err
+	}
+	statuses := make([]gitprovider.Status, 0, len(accounts))
+	for _, account := range accounts {
+		state := gitprovider.Unverified
+		if account.Disconnected {
+			state = gitprovider.NotConnected
+		}
+		statuses = append(statuses, gitprovider.Status{Account: account, State: state})
+	}
+	return values, statuses, nil
 }
 func (s *LocalSettings) Save(ctx context.Context, values settings.Values) error {
 	if err := values.Validate(); err != nil {
