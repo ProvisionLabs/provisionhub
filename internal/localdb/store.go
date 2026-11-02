@@ -147,7 +147,7 @@ func (s *Store) LoadSettings(ctx context.Context) (settings.Values, error) {
 		return values, err
 	}
 	if err := values.Validate(); err != nil {
-		return values, fmt.Errorf("stored settings are invalid: %w", err)
+		return values, fmt.Errorf("%w: %v", settings.ErrInvalidStored, err)
 	}
 	return values, nil
 }

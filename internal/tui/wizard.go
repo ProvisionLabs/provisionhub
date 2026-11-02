@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"path/filepath"
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
@@ -36,6 +37,7 @@ type projectAppliedMsg struct {
 }
 
 type wizard struct {
+	defaultWorkspace    string
 	step                wizardStep
 	name                textinput.Model
 	destination         textinput.Model
@@ -154,6 +156,9 @@ func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService)
 		return w.focusField(0), false
 	case "enter":
 		if w.focused == 0 {
+			if w.destination.Value() == "" && w.defaultWorkspace != "" && w.name.Value() != "" {
+				w.destination.SetValue(filepath.Join(w.defaultWorkspace, w.name.Value()))
+			}
 			return w.focusField(1), false
 		}
 		if _, err := service.ValidateProjectInfo(w.name.Value(), w.destination.Value()); err != nil {
