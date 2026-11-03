@@ -28,7 +28,7 @@ go build ./cmd/provisionhub
 
 ## Current interface
 
-The home screen lists Create Project, Open Existing Project, Plugin Marketplace, and Settings. Create Project collects project information, then opens the named-component list. Add, edit, or remove components before review. Review offers an optional, scrollable generation-plan preview before saving. The other three screens remain explanatory placeholders. Legacy manifests and CLI flags remain supported outside the TUI.
+The home screen lists Create Project, Open Existing Project, Plugin Marketplace, and Settings. Create Project collects project information, then opens the named-component list. Add, edit, or remove components before review. Review offers an optional, scrollable generation-plan preview before saving. Settings provides persistent General preferences and Git Providers; only Open Existing Project and Plugin Marketplace remain placeholders. Legacy manifests and CLI flags remain supported outside the TUI.
 
 | Key | Action |
 | --- | --- |
@@ -60,10 +60,39 @@ See the [planning specification](generation-planning.md) for domain fields, dete
 ```sh
 go fmt ./...
 go vet ./...
-go test ./...
+go test -count=1 ./...
 go build ./cmd/provisionhub
 ```
 
 CI checks formatting, vet, tests, and build on Windows, Linux, and macOS. Tests drive the Bubble Tea model directly, so they do not require an interactive terminal.
 
-The application layer validates and saves project manifests through the built-in catalog, loads local declarative plugins, and coordinates reviewed file generation. See the [manifest specification](project-manifest.md), [component model](architecture/components.md), [plugin contract](architecture/plugins.md), and [generation planning/execution guide](generation-planning.md). Official NestJS and Next.js plugins are in the separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins); marketplace access, infrastructure provisioning, settings persistence, and remote execution remain future work.
+The application layer validates and saves project manifests through the built-in catalog, loads local declarative plugins, and coordinates reviewed file generation. See the [manifest specification](project-manifest.md), [component model](architecture/components.md), [plugin contract](architecture/plugins.md), and [generation planning/execution guide](generation-planning.md). Official NestJS and Next.js plugins are in the separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins); marketplace access, infrastructure provisioning, and remote execution remain future work.
+
+## Settings and authentication development
+
+SQLite uses `modernc.org/sqlite` without CGO; the pinned `modernc.org/libc` must
+match the driver's own module dependency. The native vault uses
+`github.com/zalando/go-keyring`: macOS needs the system `security` utility, Linux
+needs a session D-Bus/Secret Service, and Windows uses Credential Manager. Browser
+opening is optional (`open`, `xdg-open`, or the Windows protocol handler).
+
+No account or network is needed to run normal Go tests. HTTP servers and vaults
+are mocked; SQL tests use temporary databases. Do not put a real token in test
+fixtures. A deliberately opt-in native-vault integration test stores and deletes
+a disposable non-sensitive value:
+
+```powershell
+$env:PROVISIONHUB_TEST_NATIVE_VAULT = "1"
+go test -count=1 -run TestNativeVaultIntegration ./internal/credentials
+Remove-Item Env:PROVISIONHUB_TEST_NATIVE_VAULT
+```
+
+On Unix, prefix the command with `PROVISIONHUB_TEST_NATIVE_VAULT=1` instead.
+This may trigger a native unlock prompt; it is not a GitHub OAuth test. For live
+device-flow verification, register an app and configure its public client ID as
+documented in [Git providers](git-providers.md). Never embed client secrets or
+live tokens in source. Disconnect test accounts when finished; remote grant
+revocation is a separate action in GitHub settings.
+
+See [Settings controls](settings.md), [SQLite paths and migrations](local-persistence.md),
+and [validation results](settings-validation.md).

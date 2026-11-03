@@ -10,7 +10,7 @@ Plugins are intended to provide templates, technology integrations, and provisio
 
 Running `provisionhub` opens a TUI with a **Create Project** wizard for multiple named components. It collects a name and destination, lets you add components, previews a generation plan, and saves `provisionhub.yaml` only on explicit confirmation. The CLI can still create either manifest format without a terminal, list built-in technologies, and preview a saved manifest as text or JSON. `version` and `--help` remain available.
 
-Open Existing Project, Plugin Marketplace, and Settings remain explanatory screens. The built-in catalog defines valid **configuration choices**; a matching local plugin is required for generation. Without plugins, plans retain unavailable-capability diagnostics. Official NestJS and Next.js generators live in the separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins). Infrastructure provisioning, CI/CD generation, plugin installation, and settings persistence are not implemented.
+Settings now persists local workspace/provider preferences in SQLite and manages optional GitHub account connections using device authorization and the OS credential vault. Open Existing Project and Plugin Marketplace remain explanatory screens. The built-in catalog defines valid **configuration choices**; a matching local plugin is required for generation. Without plugins, plans retain unavailable-capability diagnostics. Official NestJS and Next.js generators live in the separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins). Infrastructure provisioning, CI/CD generation, and plugin installation are not implemented.
 
 ## Build and run
 
@@ -30,6 +30,28 @@ Portable builds can include a `plugins` directory beside the executable. The TUI
 loads it automatically unless `PROVISIONHUB_PLUGINS` supplies an explicit override.
 Keep the executable and that directory together when moving a portable build.
 CLI plan/apply commands continue to use the explicit `--plugins` flag.
+
+### Application settings and GitHub
+
+Open **Settings** from Home. F1 edits the default workspace and preferred provider;
+Enter saves. F2 manages Git provider accounts: `c` connects GitHub, `r` validates
+stored credentials, and `d` disconnects the selected account. GitLab and Bitbucket
+are visibly marked Coming soon. Esc cancels device authorization.
+
+```sh
+provisionhub settings show
+provisionhub settings set --workspace /absolute/existing/workspace --provider github
+provisionhub settings git-status
+provisionhub settings git-status --validate
+```
+
+GitHub connection requires your registered OAuth app's public client ID in
+`PROVISIONHUB_GITHUB_CLIENT_ID`, with device flow enabled. No client secret or
+repository permissions are requested. Tokens stay in Windows Credential Manager,
+macOS Keychain, or Linux Secret Service, never SQLite or project files. Missing
+network, authentication, vault, or settings storage does not block local generation.
+See [Settings](docs/settings.md), [GitHub setup](docs/git-providers.md), and
+[database locations/migrations](docs/local-persistence.md).
 
 ### Create a project configuration
 
@@ -119,6 +141,11 @@ Named-component composition, local declarative plugin loading, concrete file pla
 ProvisionHub aims to solve repeated project setup, incompatible technology choices, and fragmented integration work. For example, a future Spring Boot + PostgreSQL + Docker + GitHub Actions selection should produce one coherent project configuration, rather than four unrelated templates.
 
 ## Documentation
+
+- [Application settings](docs/settings.md)
+- [Git provider authentication and OAuth setup](docs/git-providers.md)
+- [Local SQLite persistence](docs/local-persistence.md)
+- [Settings/authentication validation](docs/settings-validation.md)
 
 - [Product overview](docs/overview.md)
 - [Architecture and boundaries](docs/architecture/architecture.md)

@@ -2,7 +2,7 @@
 
 ## Status
 
-This describes the **target architecture** and identifies what exists today. The repository has a CLI, TUI project configuration wizard, built-in catalog, versioned project manifest with named components, shared services, deterministic planning, local declarative plugin loading, and separately approved file generation. Config and registry behavior remain future work. Official NestJS and Next.js plugins live in the separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins). The earlier control-plane, queue, and worker diagram was retired with the local-first decision in [ADR-0003](../adr/0003-local-first-provisioning.md).
+This describes the **target architecture** and identifies what exists today. The repository has CLI/TUI project generation, a built-in catalog, named-component project manifests, deterministic planning, local declarative plugins, and separately approved file generation. Application Settings uses local SQLite and native credential storage; optional GitHub device authorization is implemented. Registry behavior remains future work. Official NestJS and Next.js plugins live in the separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins). The earlier control-plane, queue, and worker diagram was retired with the local-first decision in [ADR-0003](../adr/0003-local-first-provisioning.md).
 
 ## Runtime shape
 
@@ -31,11 +31,24 @@ One local process is the default. TUI and CLI are adapters into the same applica
 | Core | Resolve capabilities and constraints, form plans, execute predictable operations | Plugin distribution or UI behavior |
 | Plugins | Discovery, metadata, lifecycle, and integration operations | Global workflow policy |
 | Project | Local manifest and existing-project operations | Remote service state |
-| Config | Tool-level settings and loading | Project technology decisions |
+| Settings | Typed preferences and validation | Project technology decisions, credentials |
+| Local database | Parameterized SQLite persistence and transactional migrations | Provider protocols or secrets |
+| Credentials | Native OS vault get/replace/delete | Project manifests or plaintext fallback |
+| Git provider | Identity, authentication methods, device flow and refresh | Project generation or repository modifications |
 | Registry (future) | Catalog metadata retrieval and local catalog management | A required network dependency |
 | External boundary | Filesystem, subprocesses, source-control services, cloud APIs | Application-level orchestration |
 
-CLI, TUI, application, catalog, project, planning, plugins, and execution packages now exist. The catalog holds stable technology definitions. The project package owns manifest YAML, canonical components, and persistence; application services coordinate saving, planning, preflight, and explicit apply. `internal/planning` remains pure, `internal/plugins` validates local declarative generators, and `internal/execution` publishes reviewed files without overwrite. Connection execution, plugin installation, config, and registry remain future boundaries. See [named components](components.md), the [manifest specification](../project-manifest.md), and [generation planning](../generation-planning.md).
+CLI, TUI, application, catalog, project, planning, plugins, and execution packages now exist. The catalog holds stable technology definitions. The project package owns manifest YAML, canonical components, and persistence; application services coordinate saving, planning, preflight, and explicit apply. `internal/planning` remains pure, `internal/plugins` validates local declarative generators, and `internal/execution` publishes reviewed files without overwrite. Connection execution, plugin installation, and registry remain future boundaries. See [named components](components.md), the [manifest specification](../project-manifest.md), and [generation planning](../generation-planning.md).
+
+Application preferences live in `internal/settings`; `internal/localdb` supplies
+SQLite repositories behind application interfaces. `application.LocalSettings`
+opens/closes stores per explicit operation and coordinates `AccountService`, the
+`credentials.Store` vault interface, and `gitprovider.Provider`. There is no
+database initialization or authentication requirement in CLI project commands.
+TUI settings I/O runs in commands with contexts; generation uses its existing
+approval path. Provider status is cached in presentation state between explicit
+operations, not fetched on redraw. See [local persistence](../local-persistence.md),
+[Git providers](../git-providers.md), and [ADR-0008](../adr/0008-local-settings-and-credentials.md).
 
 ## Planned flow
 
