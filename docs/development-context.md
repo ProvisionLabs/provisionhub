@@ -1,6 +1,6 @@
 # ProvisionHub development context
 
-Checked against the source on October 30, 2026. Repository code and tests take precedence over this summary. Read [AGENTS.md](../AGENTS.md) and inspect current Git state before work.
+Checked against the source on November 2, 2026. Repository code and tests take precedence over this summary. Read [AGENTS.md](../AGENTS.md) and inspect current Git state before work.
 
 ## Product and decisions
 
@@ -20,6 +20,10 @@ The Go repository owns catalog definitions, manifest parsing, application servic
 | [internal/application](../internal/application/) | Shared validation, project creation, plan freshness, and apply coordination |
 | [internal/cli](../internal/cli/) | Cobra commands, text/JSON plans, terminal or `--yes` approval |
 | [internal/tui](../internal/tui/) | Bubble Tea navigation, named-component wizard, preview, explicit generation |
+| [internal/settings](../internal/settings/) | Typed workspace/provider preferences and validation |
+| [internal/localdb](../internal/localdb/) | Lazy database/sql SQLite repositories and transactional versioned migrations |
+| [internal/credentials](../internal/credentials/) | Native OS credential-vault interface and secret redaction |
+| [internal/gitprovider](../internal/gitprovider/) | Provider-neutral identity/authentication contract and GitHub device flow/refresh |
 
 ## User behavior
 
@@ -33,4 +37,24 @@ Planning does not render, write, install dependencies, or execute commands. Exec
 
 Core validation: `go fmt ./...`, `go vet ./...`, `go test -count=1 ./...`, and `go build ./cmd/provisionhub`. Core CI runs on Windows, Linux, and macOS. With `PROVISIONHUB_BIN` set to an absolute core executable, the official plugin repository runs `node --test tests/nestjs.test.mjs tests/nextjs.test.mjs tests/components.test.mjs`. Local Windows validation generated and built two NestJS and two Next.js components; the legacy tests also started each app and verified HTTP responses. Cross-OS Node runtime validation is not claimed.
 
-Database generation, connection execution, auth, infrastructure/cloud provisioning, plugin marketplace/installation, existing-project TUI editing, and shell-command plugins remain out of scope. See the [manifest specification](project-manifest.md), [component architecture](architecture/components.md), [plugin contract](architecture/plugins.md), and [planning/execution guide](generation-planning.md).
+Application Settings is implemented: General persists an optional workspace and
+preferred provider; Git Providers connects GitHub with a registered public client
+ID via device authorization. SQLite stores preferences/account metadata, while
+tokens and refresh material stay in the native vault. Reads are offline by default;
+explicit validation determines connected state. Device polling and persistence
+run outside the TUI event loop with cancellation and stale-result protection.
+CLI `settings show/set/git-status/git-disconnect` shares the same services.
+GitLab and Bitbucket are visible as Coming soon. Self-hosted adapters are future
+work; metadata already supports distinct instances and multiple accounts.
+
+No live GitHub browser authorization is claimed. Mocked HTTP lifecycle tests,
+temporary SQLite restart/migration/error tests, and an opt-in Windows Credential
+Manager round trip were performed. See [settings validation](settings-validation.md),
+[OAuth setup](git-providers.md), and [ADR-0008](adr/0008-local-settings-and-credentials.md).
+
+Database generation, component connection execution, authentication inside
+generated applications, infrastructure/cloud provisioning, plugin marketplace/
+installation, existing-project TUI editing, and shell-command plugins remain out
+of scope. See the [manifest specification](project-manifest.md),
+[component architecture](architecture/components.md), [plugin contract](architecture/plugins.md),
+and [planning/execution guide](generation-planning.md).
