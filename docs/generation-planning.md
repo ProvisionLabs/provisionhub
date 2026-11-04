@@ -1,5 +1,7 @@
 # Generation planning and local execution
 
+When a [project plugin lock](project-plugin-locking.md) exists, planning selects only its exact installed plugins and checks their content digests without network access or writes. Apply repeats that check before the existing plan freshness and filesystem preflight. Global plugin updates cannot change a locked plan.
+
 ## Configuration, planning, and execution
 
 A valid project manifest records desired technologies. It does not imply source generation support. The built-in catalog validates IDs/categories and explicit conflicts; a local plugin supplies a generator for an existing technology ID. Missing generators produce `missing_operation_provider` warnings. `status: planned` means a valid operation graph was constructed. `executable: true` requires every selected capability to be supported and at least one concrete file operation.

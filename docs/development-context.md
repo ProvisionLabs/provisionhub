@@ -1,6 +1,6 @@
 # ProvisionHub development context
 
-Checked against the source on November 3, 2026. Repository code and tests take precedence over this summary. Read [AGENTS.md](../AGENTS.md) and inspect current Git state before work.
+Checked against the source on November 4, 2026. Repository code and tests take precedence over this summary. Read [AGENTS.md](../AGENTS.md) and inspect current Git state before work.
 
 Plugin Registry v1 and Plugin Manager are implemented. [ADR-0009](adr/0009-static-plugin-registry.md)
 records namespaced distribution identity, immutable artifacts and trust boundaries.
@@ -48,8 +48,11 @@ supported via explicit paths, environment override and portable bundles.
 
 Updates retain old versions. Multiple candidates require `--plugin-version
 namespace/name@x.y.z` on CLI plan/apply, or Installed → `s` for a TUI session.
-Projects do not have portable plugin locks yet, so explicit selection must be
-repeated in a new session. Project-specific version locking is recommended next.
+Projects can explicitly create `.provisionhub/plugins.lock.yaml` through
+`project lock` or the Create Project result screen. Locked plan/apply resolution
+uses exact installed versions and content digests. `--check`, `--update`, and
+`--restore` provide validation, intentional updates, and explicit official
+artifact restoration. See [ADR-0010](adr/0010-project-plugin-locking.md).
 
 The manifest remains at the destination root, anchoring plan/apply. Named components generate below their names (`api/`, `billing/`, `web/`); legacy manifests retain `backend/` and `frontend/` outputs. `{{componentName}}` is the instance name for named projects and the project name for legacy projects. The same plugin definition serves repeated instances. Optional `http` connections are validated and serialized but do not wire applications together. A catalog technology without a generator makes the plan non-executable.
 

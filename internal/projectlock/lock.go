@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -52,7 +53,8 @@ func (l Lock) Validate() error {
 		seen[p.ID] = true
 		switch p.Source {
 		case "official":
-			if !validHash(p.SHA256) || !strings.HasPrefix(p.Artifact, "https://github.com/ProvisionLabs/provisionhub-official-plugins/releases/download/") || strings.ContainsAny(p.Artifact, "?#") {
+			u, err := url.Parse(p.Artifact)
+			if !validHash(p.SHA256) || err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Fragment != "" || u.RawQuery != "" || !strings.Contains(u.Path, "/releases/download/"+strings.ReplaceAll(p.ID, "/", "-")+"-v"+p.Version+"/") {
 				return fmt.Errorf("invalid immutable official artifact for %q", p.ID)
 			}
 		case "local":
@@ -92,14 +94,11 @@ func Unmarshal(data []byte) (Lock, error) {
 // Path anchors the lock to the manifest's directory, without following a
 // symlinked manifest, lock directory, or lockfile.
 func Path(manifestPath string) (string, error) {
-	if filepath.Base(manifestPath) != "provisionhub.yaml" {
-		return "", errors.New("lockfile requires a provisionhub.yaml manifest")
-	}
 	absolute, err := filepath.Abs(manifestPath)
 	if err != nil {
 		return "", err
 	}
-	for _, p := range []string{absolute, filepath.Join(filepath.Dir(absolute), ".provisionhub"), filepath.Join(filepath.Dir(absolute), filepath.FromSlash(RelativePath))} {
+	for _, p := range []string{filepath.Dir(absolute), absolute, filepath.Join(filepath.Dir(absolute), ".provisionhub"), filepath.Join(filepath.Dir(absolute), filepath.FromSlash(RelativePath))} {
 		info, e := os.Lstat(p)
 		if e == nil && info.Mode()&os.ModeSymlink != 0 {
 			return "", fmt.Errorf("lock path contains symlink %q", p)

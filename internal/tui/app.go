@@ -120,6 +120,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.wizard.created(msg)
 	case projectAppliedMsg:
 		m.wizard.applied(msg)
+	case projectLockMsg:
+		if msg.err != nil {
+			m.wizard.err = msg.err.Error()
+		} else {
+			m.wizard.lock = msg.lock
+			m.wizard.err = ""
+		}
 	case tea.KeyPressMsg:
 		if m.nav.current == createProject && m.wizard.applying {
 			return m, nil

@@ -180,7 +180,13 @@ func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.Proje
 			}, false
 		}
 	case resultStep:
-		if key == "p" {
+		if key == "l" {
+			file := w.result.ManifestPath
+			return func() tea.Msg {
+				lock, err := service.LockProject(file, false, false)
+				return projectLockMsg{lock: lock, err: err}
+			}, false
+		} else if key == "p" {
 			plan, err := service.PlanProject(w.result.ManifestPath)
 			if err != nil {
 				w.err = err.Error()
@@ -244,7 +250,15 @@ func (w *wizard) componentLines(service application.ProjectService, contentWidth
 			} else if w.err != "" {
 				status = "Manifest saved; generation incomplete"
 			}
-			lines = append(lines, "", status, "Manifest: "+fitTail(w.result.ManifestPath, contentWidth-10), "p plan · enter/esc home")
+			lockStatus := "Unlocked"
+			if w.lock.LockVersion == 1 {
+				lockStatus = fmt.Sprintf("Locked (%d plugins)", len(w.lock.Plugins))
+			}
+			lines = append(lines, "", status, "Manifest: "+fitTail(w.result.ManifestPath, contentWidth-10), "Plugins: "+lockStatus)
+			for _, plugin := range w.lock.Plugins {
+				lines = append(lines, "  "+plugin.ID+"@"+plugin.Version)
+			}
+			lines = append(lines, "l create lock · p plan · enter/esc home")
 		}
 	}
 	if w.err != "" {

@@ -25,6 +25,14 @@ type ProjectService struct {
 	catalog         catalog.Catalog
 	pluginDirectory string
 	pluginVersions  map[string]string
+	pluginManager   *PluginManager
+}
+
+func (s ProjectService) manager() PluginManager {
+	if s.pluginManager != nil {
+		return *s.pluginManager
+	}
+	return PluginManager{}
 }
 
 func NewProjectService() ProjectService {
