@@ -18,6 +18,12 @@ import (
 type Store struct{ db *sql.DB }
 
 func DefaultPath() (string, error) {
+	if directory := os.Getenv("PROVISIONHUB_DATA_DIR"); directory != "" {
+		if !filepath.IsAbs(directory) {
+			return "", errors.New("PROVISIONHUB_DATA_DIR must be absolute")
+		}
+		return filepath.Join(directory, "provisionhub.db"), nil
+	}
 	if runtime.GOOS == "linux" {
 		data := os.Getenv("XDG_DATA_HOME")
 		if data == "" {
@@ -90,6 +96,11 @@ var migrations = []string{
  disconnected INTEGER NOT NULL DEFAULT 0 CHECK(disconnected IN (0,1)),
  created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
  UNIQUE(provider,instance_url,subject_id));`,
+	`CREATE TABLE installed_plugins (
+ plugin_id TEXT NOT NULL, version TEXT NOT NULL, source TEXT NOT NULL,
+ installation_path TEXT NOT NULL UNIQUE, checksum TEXT NOT NULL,
+ installed_at TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN ('installing','ready','removing')),
+ PRIMARY KEY(plugin_id,version));`,
 }
 
 func migrate(ctx context.Context, db *sql.DB, steps []string) error {
