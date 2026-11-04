@@ -12,6 +12,7 @@ import (
 
 func newPlanCommand() *cobra.Command {
 	var file, output, pluginDirectory string
+	var pluginVersions []string
 	command := &cobra.Command{
 		Use: "plan", Short: "Preview generation capabilities without writing or executing anything",
 		Long: "Preview a generation plan without writing project files or executing operations.\nExit 0 means a plan was constructed, even when execution is unavailable.\nExit 1 means an input, loading, validation, planning, or output failure.",
@@ -21,6 +22,10 @@ func newPlanCommand() *cobra.Command {
 				return fmt.Errorf("unsupported output format %q (expected text or json)", output)
 			}
 			service, err := application.NewProjectServiceWithPlugins(pluginDirectory)
+			if err != nil {
+				return err
+			}
+			service, err = service.WithPluginVersions(pluginVersions)
 			if err != nil {
 				return err
 			}
@@ -40,6 +45,7 @@ func newPlanCommand() *cobra.Command {
 	command.Flags().StringVar(&file, "file", "", "Path to provisionhub.yaml (required)")
 	command.Flags().StringVar(&output, "output", "text", "Output format: text or json")
 	command.Flags().StringVar(&pluginDirectory, "plugins", "", "Local plugin directory (optional)")
+	command.Flags().StringArrayVar(&pluginVersions, "plugin-version", nil, "Select installed namespace/name@x.y.z (repeatable)")
 	_ = command.MarkFlagRequired("file")
 	return command
 }

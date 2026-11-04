@@ -3,6 +3,8 @@ package plugins
 import (
 	"fmt"
 	"reflect"
+	"slices"
+	"strings"
 )
 
 // Merge deduplicates identical definitions, and refuses ambiguous technology or
@@ -26,6 +28,15 @@ func Merge(sets ...Set) (Set, error) {
 		}
 	}
 	return result, nil
+}
+
+func (s Set) Manifests() []Manifest {
+	result := make([]Manifest, 0, len(s.byTechnology))
+	for _, manifest := range s.byTechnology {
+		result = append(result, manifest)
+	}
+	slices.SortFunc(result, func(a, b Manifest) int { return strings.Compare(a.ID, b.ID) })
+	return result
 }
 func FromManifest(manifest Manifest) Set {
 	return Set{byTechnology: map[string]Manifest{manifest.TechnologyID: manifest}}
