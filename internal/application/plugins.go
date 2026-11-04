@@ -147,6 +147,12 @@ func (m PluginManager) check(item plugins.Installation) (plugins.Manifest, error
 	if item.State != "ready" {
 		return plugins.Manifest{}, fmt.Errorf("interrupted %s operation; remove this exact version and reinstall", item.State)
 	}
+	if !registry.ValidVersion(item.MinimumCoreVersion) {
+		return plugins.Manifest{}, errors.New("installation lacks valid compatibility metadata; remove and reinstall")
+	}
+	if registry.Compare(registry.CoreVersion, item.MinimumCoreVersion) < 0 {
+		return plugins.Manifest{}, fmt.Errorf("installation requires core %s or later", item.MinimumCoreVersion)
+	}
 	manifest, err := plugins.LoadFolder(item.Path)
 	if err != nil {
 		return manifest, err
@@ -305,7 +311,7 @@ func (m PluginManager) InstallFrom(ctx context.Context, index registry.Index, id
 		return plugins.Installation{}, err
 	}
 	defer db.Close()
-	item := plugins.Installation{PluginID: id, Version: release.Version, Source: "official", Path: target, Checksum: release.SHA256, InstalledAt: time.Now().UTC(), State: "installing"}
+	item := plugins.Installation{PluginID: id, Version: release.Version, Source: "official", Path: target, Checksum: release.SHA256, InstalledAt: time.Now().UTC(), State: "installing", MinimumCoreVersion: release.MinimumCoreVersion}
 	if m.Source != nil {
 		item.Source = "custom"
 	}

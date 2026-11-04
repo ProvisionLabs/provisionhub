@@ -102,6 +102,7 @@ var migrations = []string{
  installed_at TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN ('installing','ready','removing')),
  PRIMARY KEY(plugin_id,version));`,
 	`ALTER TABLE installed_plugins ADD COLUMN content_checksum TEXT NOT NULL DEFAULT '';`,
+	`ALTER TABLE installed_plugins ADD COLUMN minimum_core_version TEXT NOT NULL DEFAULT '';`,
 }
 
 func migrate(ctx context.Context, db *sql.DB, steps []string) error {

@@ -11,7 +11,7 @@ import (
 )
 
 func (s *Store) Installations(ctx context.Context) ([]plugins.Installation, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT plugin_id,version,source,installation_path,checksum,installed_at,state,content_checksum FROM installed_plugins ORDER BY plugin_id,version")
+	rows, err := s.db.QueryContext(ctx, "SELECT plugin_id,version,source,installation_path,checksum,installed_at,state,content_checksum,minimum_core_version FROM installed_plugins ORDER BY plugin_id,version")
 	if err != nil {
 		return nil, err
 	}
@@ -20,7 +20,7 @@ func (s *Store) Installations(ctx context.Context) ([]plugins.Installation, erro
 	for rows.Next() {
 		var item plugins.Installation
 		var stamp string
-		if err := rows.Scan(&item.PluginID, &item.Version, &item.Source, &item.Path, &item.Checksum, &stamp, &item.State, &item.ContentChecksum); err != nil {
+		if err := rows.Scan(&item.PluginID, &item.Version, &item.Source, &item.Path, &item.Checksum, &stamp, &item.State, &item.ContentChecksum, &item.MinimumCoreVersion); err != nil {
 			return nil, err
 		}
 		item.InstalledAt, err = time.Parse(time.RFC3339Nano, stamp)
@@ -47,10 +47,10 @@ func (s *Store) SetInstallationContent(ctx context.Context, id, version, digest 
 	return nil
 }
 func (s *Store) ReserveInstallation(ctx context.Context, item plugins.Installation) error {
-	if !registry.ValidID(item.PluginID) || !registry.ValidVersion(item.Version) || item.State != "installing" || item.Path == "" || len(item.Checksum) != 64 {
+	if !registry.ValidID(item.PluginID) || !registry.ValidVersion(item.Version) || !registry.ValidVersion(item.MinimumCoreVersion) || item.State != "installing" || item.Path == "" || len(item.Checksum) != 64 {
 		return errors.New("invalid installation reservation")
 	}
-	_, err := s.db.ExecContext(ctx, "INSERT INTO installed_plugins(plugin_id,version,source,installation_path,checksum,installed_at,state) VALUES(?,?,?,?,?,?,?)", item.PluginID, item.Version, item.Source, item.Path, item.Checksum, item.InstalledAt.UTC().Format(time.RFC3339Nano), item.State)
+	_, err := s.db.ExecContext(ctx, "INSERT INTO installed_plugins(plugin_id,version,source,installation_path,checksum,installed_at,state,minimum_core_version) VALUES(?,?,?,?,?,?,?,?)", item.PluginID, item.Version, item.Source, item.Path, item.Checksum, item.InstalledAt.UTC().Format(time.RFC3339Nano), item.State, item.MinimumCoreVersion)
 	return err
 }
 func (s *Store) TransitionInstallation(ctx context.Context, id, version, from, to string) error {
