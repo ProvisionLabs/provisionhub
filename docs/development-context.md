@@ -1,13 +1,13 @@
 # ProvisionHub development context
 
-Checked against the source on November 2, 2026. Repository code and tests take precedence over this summary. Read [AGENTS.md](../AGENTS.md) and inspect current Git state before work.
+Checked against the source on November 3, 2026. Repository code and tests take precedence over this summary. Read [AGENTS.md](../AGENTS.md) and inspect current Git state before work.
 
-Plugin Registry v1 work began November 3, 2026. The first increment defines the
-strict static registry contract in `internal/registry` and records distribution
-identity, stable versioning, immutable artifact requirements, and trust boundaries
-in [ADR-0009](adr/0009-static-plugin-registry.md). This contract alone does not
-enable downloading, installation, or plugin management; those increments remain
-pending. Existing local generation behavior is unchanged.
+Plugin Registry v1 and Plugin Manager are implemented. [ADR-0009](adr/0009-static-plugin-registry.md)
+records namespaced distribution identity, immutable artifacts and trust boundaries.
+The [registry guide](plugin-registry.md) documents schema, packaging, lifecycle,
+SQLite, CLI/TUI, recovery, offline use and the project-locking limitation.
+Official NestJS and Next.js 1.1.0 packages are published through the official
+repository's manually dispatched release workflow.
 
 ## Product and decisions
 
@@ -22,6 +22,7 @@ The Go repository owns catalog definitions, manifest parsing, application servic
 | [internal/project](../internal/project/) | Strict `v1alpha1` YAML, canonical named/legacy components, connection metadata, safe manifest persistence |
 | [internal/catalog](../internal/catalog/) | Stable technology IDs and category/conflict validation |
 | [internal/plugins](../internal/plugins/) | Local declarative plugin discovery, template/path validation, component output rebasing |
+| [internal/registry](../internal/registry/) | Strict static index, stable release resolution, HTTPS source, explicit stale cache and immutable history |
 | [internal/planning](../internal/planning/) | Pure deterministic component-owned operations, graph ordering, diagnostics, executability |
 | [internal/execution](../internal/execution/) | Reviewed, root-confined staging and no-overwrite file publication |
 | [internal/application](../internal/application/) | Shared validation, project creation, plan freshness, and apply coordination |
@@ -36,6 +37,20 @@ The Go repository owns catalog definitions, manifest parsing, application servic
 
 `provisionhub project init --name demo --path ./demo --backend nestjs` remains the simple legacy CLI flow. A complex project can use `project init --from ./source.yaml --path ./demo`. Both formats use `project plan --file ... --plugins ...` and `project apply --file ... --plugins ...`; apply requires explicit approval. The TUI creates named-component manifests directly: after project information, `a`, `e`, and `d` add, edit, and remove instances. Review `p` shows the read-only plan; Enter on **Generate Project** creates the manifest and generated files. The result screen offers a fresh preview and confirmed retry if generation fails after the manifest is saved.
 
+`plugin list/search/info/install/update/updates/remove` and Home → Plugins share
+`application.PluginManager`. List and generation remain offline. Discovery is
+explicit, with clearly stale cache fallback. Installation verifies bounded HTTPS
+downloads and manifests, stages files, activates by rename and transitions SQLite
+metadata to ready. Migrations 3–5 add installation rows, content integrity and
+minimum-core compatibility. Broken/interrupted packages never load as healthy.
+Removal touches only managed version containers; unmanaged directories remain
+supported via explicit paths, environment override and portable bundles.
+
+Updates retain old versions. Multiple candidates require `--plugin-version
+namespace/name@x.y.z` on CLI plan/apply, or Installed → `s` for a TUI session.
+Projects do not have portable plugin locks yet, so explicit selection must be
+repeated in a new session. Project-specific version locking is recommended next.
+
 The manifest remains at the destination root, anchoring plan/apply. Named components generate below their names (`api/`, `billing/`, `web/`); legacy manifests retain `backend/` and `frontend/` outputs. `{{componentName}}` is the instance name for named projects and the project name for legacy projects. The same plugin definition serves repeated instances. Optional `http` connections are validated and serialized but do not wire applications together. A catalog technology without a generator makes the plan non-executable.
 
 Planning does not render, write, install dependencies, or execute commands. Execution rebuilds and compares the reviewed plan, checks the destination and target paths, stages complete files, and uses no-overwrite hard links. It rejects path traversal, symlinked output parents, and collisions. Multi-file publication is not fully transactional after a process crash or hostile concurrent filesystem change.
@@ -43,6 +58,16 @@ Planning does not render, write, install dependencies, or execute commands. Exec
 ## Validation and limits
 
 Core validation: `go fmt ./...`, `go vet ./...`, `go test -count=1 ./...`, and `go build ./cmd/provisionhub`. Core CI runs on Windows, Linux, and macOS. With `PROVISIONHUB_BIN` set to an absolute core executable, the official plugin repository runs `node --test tests/nestjs.test.mjs tests/nextjs.test.mjs tests/components.test.mjs`. Local Windows validation generated and built two NestJS and two Next.js components; the legacy tests also started each app and verified HTTP responses. Cross-OS Node runtime validation is not claimed.
+
+Registry milestone validation used mocked TLS servers, temporary storage and both
+real official definitions. Official CI validates deterministic pinned-toolchain
+packages, checksums, immutable history and offline four-component generation.
+Live Windows CLI checks fetched the public registry, installed both published
+packages, restarted with registry access blocked, generated 40 files, checked
+same-version update behavior, removed packages and verified local discovery.
+Updating to a newer version was tested with a mocked second release; there is
+only one published version per official plugin. No new npm runtime/build checks
+are claimed for this distribution milestone.
 
 Application Settings is implemented: General persists an optional workspace and
 preferred provider; Git Providers connects GitHub with a registered public client
@@ -60,8 +85,8 @@ Manager round trip were performed. See [settings validation](settings-validation
 [OAuth setup](git-providers.md), and [ADR-0008](adr/0008-local-settings-and-credentials.md).
 
 Database generation, component connection execution, authentication inside
-generated applications, infrastructure/cloud provisioning, plugin marketplace/
-installation, existing-project TUI editing, and shell-command plugins remain out
+generated applications, infrastructure/cloud provisioning, a marketplace website
+or backend, existing-project TUI editing, and shell-command plugins remain out
 of scope. See the [manifest specification](project-manifest.md),
 [component architecture](architecture/components.md), [plugin contract](architecture/plugins.md),
 and [planning/execution guide](generation-planning.md).

@@ -10,7 +10,7 @@ Plugins are intended to provide templates, technology integrations, and provisio
 
 Running `provisionhub` opens a TUI with a **Create Project** wizard for multiple named components. It collects a name and destination, lets you add components, previews a generation plan, and saves `provisionhub.yaml` only on explicit confirmation. The CLI can still create either manifest format without a terminal, list built-in technologies, and preview a saved manifest as text or JSON. `version` and `--help` remain available.
 
-Settings now persists local workspace/provider preferences in SQLite and manages optional GitHub account connections using device authorization and the OS credential vault. Open Existing Project and Plugin Marketplace remain explanatory screens. The built-in catalog defines valid **configuration choices**; a matching local plugin is required for generation. Without plugins, plans retain unavailable-capability diagnostics. Official NestJS and Next.js generators live in the separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins). Infrastructure provisioning, CI/CD generation, and plugin installation are not implemented.
+Settings persists local workspace/provider preferences in SQLite and manages optional GitHub account connections using device authorization and the OS credential vault. **Plugins** discovers, installs, lists, updates and removes official declarative packages through a static registry and versioned GitHub Release assets. Open Existing Project remains explanatory. The built-in catalog defines valid **configuration choices**; a matching healthy plugin is required for generation. Official NestJS and Next.js generators live in the separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins). Infrastructure provisioning and CI/CD generation remain future work.
 
 ## Build and run
 
@@ -29,7 +29,22 @@ After `go build`, run `./provisionhub` on Linux/macOS or `.\provisionhub.exe` on
 Portable builds can include a `plugins` directory beside the executable. The TUI
 loads it automatically unless `PROVISIONHUB_PLUGINS` supplies an explicit override.
 Keep the executable and that directory together when moving a portable build.
-CLI plan/apply commands continue to use the explicit `--plugins` flag.
+CLI plan/apply commands share managed discovery and also accept `--plugins`.
+
+### Install official plugins
+
+```sh
+provisionhub plugin search
+provisionhub plugin install official/nestjs
+provisionhub plugin install official/nextjs
+provisionhub plugin list
+provisionhub plugin updates
+```
+
+Installed generators persist in application data and work offline. Home →
+**Plugins** offers Available, Installed and Updates. See the
+[Plugin Registry and Manager guide](docs/plugin-registry.md) for commands,
+checksums, recovery, local plugin compatibility and explicit version selection.
 
 ### Application settings and GitHub
 
@@ -152,6 +167,7 @@ ProvisionHub aims to solve repeated project setup, incompatible technology choic
 - [Named component model](docs/architecture/components.md)
 - [Planned project structure](docs/architecture/project-structure.md)
 - [Plugin architecture](docs/architecture/plugins.md)
+- [Plugin Registry v1 and Plugin Manager](docs/plugin-registry.md)
 - [Decision records](docs/adr/)
 - [Contributing](CONTRIBUTING.md)
 - [Running and developing](docs/development.md)
