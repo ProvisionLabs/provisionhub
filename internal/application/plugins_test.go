@@ -1,8 +1,11 @@
 package application
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,6 +18,65 @@ import (
 	"github.com/ProvisionLabs/provisionhub/internal/plugins"
 	"github.com/ProvisionLabs/provisionhub/internal/registry"
 )
+
+func TestInstallationIntegrityDoesNotDependOnGzipEncoding(t *testing.T) {
+	manager, index, original := managerFixture(t)
+	reader, err := gzip.NewReader(bytes.NewReader(original))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tarBytes, err := io.ReadAll(reader)
+	reader.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var encoded bytes.Buffer
+	writer, _ := gzip.NewWriterLevel(&encoded, gzip.NoCompression)
+	writer.Write(tarBytes)
+	writer.Close()
+	data := encoded.Bytes()
+	if bytes.Equal(data, original) {
+		t.Fatal("test needs a different archive encoding")
+	}
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(data) }))
+	defer server.Close()
+	index.Plugins[0].Versions[0].Artifact = server.URL + "/releases/download/official-nestjs-v1.1.0/plugin.tar.gz"
+	index.Plugins[0].Versions[0].SHA256 = plugins.Checksum(data)
+	manager.HTTP = server.Client()
+	if _, err := manager.InstallFrom(context.Background(), index, "official/nestjs", ""); err != nil {
+		t.Fatal(err)
+	}
+	items, err := manager.List(context.Background())
+	if err != nil || len(items) != 1 || items[0].Status != "healthy" {
+		t.Fatal(items, err)
+	}
+}
+func TestConfiguredSymlinkAncestorAndManagedSymlinkRejection(t *testing.T) {
+	manager, index, _ := managerFixture(t)
+	parent := t.TempDir()
+	alias := filepath.Join(parent, "alias")
+	if err := os.Symlink(manager.DataDirectory, alias); err != nil {
+		t.Skip("symlink creation unavailable", err)
+	}
+	manager.DataDirectory = filepath.Join(alias, "user-data")
+	item, err := manager.InstallFrom(context.Background(), index, "official/nestjs", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(item.Path, item.Path+"-real"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(item.Path+"-real", item.Path); err != nil {
+		t.Fatal(err)
+	}
+	items, err := manager.List(context.Background())
+	if err != nil || items[0].Status == "healthy" {
+		t.Fatal(items, err)
+	}
+	if err := manager.Remove(context.Background(), item.PluginID, item.Version); err == nil {
+		t.Fatal("followed managed symlink")
+	}
+}
 
 type fixedRegistry struct{ index registry.Index }
 

@@ -27,16 +27,52 @@ type PluginManager struct {
 
 func (m PluginManager) directory() (string, error) {
 	if m.DataDirectory != "" {
-		return filepath.Abs(m.DataDirectory)
+		return canonicalDataDirectory(m.DataDirectory)
 	}
 	if value := os.Getenv("PROVISIONHUB_DATA_DIR"); value != "" {
 		if !filepath.IsAbs(value) {
 			return "", errors.New("PROVISIONHUB_DATA_DIR must be absolute")
 		}
-		return value, nil
+		return canonicalDataDirectory(value)
 	}
 	db, err := localdb.DefaultPath()
-	return filepath.Dir(db), err
+	if err != nil {
+		return "", err
+	}
+	return canonicalDataDirectory(filepath.Dir(db))
+}
+
+// Resolve configured application-data ancestors once. macOS /var and /tmp are
+// system symlinks; symlinks inside the resulting managed tree remain forbidden.
+func canonicalDataDirectory(directory string) (string, error) {
+	absolute, err := filepath.Abs(directory)
+	if err != nil {
+		return "", err
+	}
+	current := absolute
+	tail := []string{}
+	for {
+		_, err := os.Lstat(current)
+		if err == nil {
+			resolved, err := filepath.EvalSymlinks(current)
+			if err != nil {
+				return "", err
+			}
+			for i := len(tail) - 1; i >= 0; i-- {
+				resolved = filepath.Join(resolved, tail[i])
+			}
+			return resolved, nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", err
+		}
+		tail = append(tail, filepath.Base(current))
+		current = parent
+	}
 }
 func (m PluginManager) source() (registry.Source, error) {
 	if m.Source != nil {
@@ -111,11 +147,11 @@ func (m PluginManager) check(item plugins.Installation) (plugins.Manifest, error
 	if item.State != "ready" {
 		return plugins.Manifest{}, fmt.Errorf("interrupted %s operation; remove this exact version and reinstall", item.State)
 	}
-	data, manifest, err := plugins.Package(item.Path)
+	manifest, err := plugins.LoadFolder(item.Path)
 	if err != nil {
 		return manifest, err
 	}
-	if manifest.Version != item.Version || plugins.Checksum(data) != item.Checksum {
+	if manifest.Version != item.Version || plugins.ContentChecksum(manifest) != item.ContentChecksum {
 		return manifest, errors.New("installed package integrity check failed; remove and reinstall")
 	}
 	return manifest, nil
@@ -304,12 +340,9 @@ func (m PluginManager) InstallFrom(ctx context.Context, index registry.Index, id
 	if manifest.ID != p.ManifestID || manifest.Version != release.Version || manifest.TechnologyID != p.TechnologyID || string(manifest.Category) != p.Category || manifest.Name != p.Name {
 		return item, errors.New("packaged identity, version or technology does not match the registry")
 	}
-	canonical, _, err := plugins.Package(stage)
-	if err != nil {
+	item.ContentChecksum = plugins.ContentChecksum(manifest)
+	if err := db.SetInstallationContent(ctx, id, release.Version, item.ContentChecksum); err != nil {
 		return item, err
-	}
-	if plugins.Checksum(canonical) != item.Checksum {
-		return item, errors.New("package is not canonical v1 distribution format")
 	}
 	if err := ctx.Err(); err != nil {
 		return item, err
