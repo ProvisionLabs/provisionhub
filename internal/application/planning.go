@@ -32,7 +32,7 @@ func (s ProjectService) PlanProject(path string) (planning.Plan, error) {
 
 // PlanManifest shares pure planning between saved projects and unsaved TUI input.
 func (s ProjectService) PlanManifest(manifest project.Manifest) (planning.Plan, error) {
-	loaded, err := plugins.LoadDirectory(s.pluginDirectory, s.catalog)
+	loaded, err := s.loadPlugins()
 	if err != nil {
 		return planning.Plan{Status: planning.StatusInvalid, Technologies: []planning.Technology{}, Operations: []planning.Operation{}, Diagnostics: []planning.Diagnostic{{Severity: planning.SeverityError, Code: planning.InvalidPlugin, Message: err.Error()}}}, err
 	}
@@ -115,7 +115,7 @@ func (s ProjectService) freshInputs(file string, reviewed planning.Plan) (projec
 	if err != nil {
 		return project.Manifest{}, plugins.Set{}, err
 	}
-	loaded, err := plugins.LoadDirectory(s.pluginDirectory, s.catalog)
+	loaded, err := s.loadPlugins()
 	if err != nil {
 		return project.Manifest{}, plugins.Set{}, err
 	}

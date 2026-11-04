@@ -24,6 +24,7 @@ type CreateProjectResult struct {
 type ProjectService struct {
 	catalog         catalog.Catalog
 	pluginDirectory string
+	pluginVersions  map[string]string
 }
 
 func NewProjectService() ProjectService {
@@ -32,7 +33,11 @@ func NewProjectService() ProjectService {
 
 func NewProjectServiceWithPlugins(directory string) (ProjectService, error) {
 	s := NewProjectService()
-	_, err := plugins.LoadDirectory(directory, s.catalog)
+	resolved, err := pluginDirectory(directory)
+	if err != nil {
+		return ProjectService{}, err
+	}
+	_, err = plugins.LoadDirectory(resolved, s.catalog)
 	if err != nil {
 		return ProjectService{}, err
 	}
