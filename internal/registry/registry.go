@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 const OfficialURL = "https://raw.githubusercontent.com/ProvisionLabs/provisionhub-official-plugins/main/registry.json"
@@ -46,7 +47,19 @@ var stableVersion = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1
 
 func ValidID(id string) bool {
 	parts := strings.Split(id, "/")
-	return len(parts) == 2 && len(id) <= 127 && slug.MatchString(parts[0]) && slug.MatchString(parts[1])
+	if len(parts) != 2 {
+		return false
+	}
+	for _, part := range parts {
+		if len(part) > 63 || !slug.MatchString(part) {
+			return false
+		}
+		upper := strings.ToUpper(part)
+		if upper == "CON" || upper == "PRN" || upper == "AUX" || upper == "NUL" || len(upper) == 4 && (strings.HasPrefix(upper, "COM") || strings.HasPrefix(upper, "LPT")) && upper[3] >= '1' && upper[3] <= '9' {
+			return false
+		}
+	}
+	return true
 }
 func ValidVersion(v string) bool {
 	if len(v) > 32 || !stableVersion.MatchString(v) {
@@ -79,6 +92,9 @@ func secureURL(value string) bool {
 }
 func Parse(data []byte) (Index, error) {
 	var index Index
+	if err := rejectDuplicateKeys(data); err != nil {
+		return index, err
+	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&index); err != nil {
@@ -95,6 +111,16 @@ func (index Index) Validate() error {
 	}
 	ids := map[string]bool{}
 	for _, p := range index.Plugins {
+		for _, text := range []string{p.Publisher, p.Name, p.Description} {
+			if len(text) > 4096 || strings.TrimSpace(text) != text {
+				return fmt.Errorf("invalid display metadata for %q", p.ID)
+			}
+			for _, r := range text {
+				if unicode.IsControl(r) {
+					return fmt.Errorf("control character in metadata for %q", p.ID)
+				}
+			}
+		}
 		if !ValidID(p.ID) || !slug.MatchString(p.ManifestID) || p.Publisher == "" || p.Name == "" || p.Description == "" || !slug.MatchString(p.TechnologyID) || (p.Category != "backend" && p.Category != "frontend") {
 			return fmt.Errorf("invalid metadata for plugin %q", p.ID)
 		}

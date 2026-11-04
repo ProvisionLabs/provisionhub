@@ -12,8 +12,8 @@ import (
 )
 
 func run(args []string) error {
-	if len(args) != 2 {
-		return fmt.Errorf("usage: pluginpack <official-plugins-directory> <empty-output-directory>")
+	if len(args) != 2 && len(args) != 3 {
+		return fmt.Errorf("usage: pluginpack <official-plugins-directory> <empty-output-directory> [previous-registry.json]")
 	}
 	if err := os.Mkdir(args[1], 0o755); err != nil {
 		return err
@@ -45,6 +45,20 @@ func run(args []string) error {
 			return err
 		}
 		index.Plugins = append(index.Plugins, registry.Plugin{ID: id, ManifestID: m.ID, Publisher: "ProvisionLabs", Name: m.Name, Description: m.Description, TechnologyID: m.TechnologyID, Category: string(m.Category), Source: "https://github.com/ProvisionLabs/provisionhub-official-plugins", Versions: []registry.Release{{Version: m.Version, MinimumCoreVersion: registry.CoreVersion, Artifact: "https://github.com/ProvisionLabs/provisionhub-official-plugins/releases/download/" + tag + "/" + filename, SHA256: digest}}})
+	}
+	if len(args) == 3 {
+		data, err := os.ReadFile(args[2])
+		if err != nil {
+			return err
+		}
+		previous, err := registry.Parse(data)
+		if err != nil {
+			return err
+		}
+		index, err = registry.RetainHistory(index, previous)
+		if err != nil {
+			return err
+		}
 	}
 	data, err := index.Marshal()
 	if err != nil {

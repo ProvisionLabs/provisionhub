@@ -359,6 +359,9 @@ func (m PluginManager) InstallFrom(ctx context.Context, index registry.Index, id
 	return item, nil
 }
 func (m PluginManager) Update(ctx context.Context, id string) (plugins.Installation, error) {
+	if !registry.ValidID(id) {
+		return plugins.Installation{}, errors.New("invalid plugin identity")
+	}
 	items, err := m.List(ctx)
 	if err != nil {
 		return plugins.Installation{}, err
@@ -367,6 +370,9 @@ func (m PluginManager) Update(ctx context.Context, id string) (plugins.Installat
 	var highest string
 	for _, item := range items {
 		if item.PluginID == id {
+			if !registry.ValidVersion(item.Version) {
+				return plugins.Installation{}, errors.New("installed metadata has an invalid version")
+			}
 			installed = true
 			if highest == "" || registry.Compare(item.Version, highest) > 0 {
 				highest = item.Version
@@ -410,6 +416,9 @@ func (m PluginManager) Remove(ctx context.Context, id, version string) error {
 		return errors.New("multiple installed versions; remove an explicit id@version")
 	}
 	item := matches[0]
+	if !registry.ValidVersion(item.Version) {
+		return errors.New("unsafe installation version; refusing removal")
+	}
 	directory, err := m.directory()
 	if err != nil {
 		return err
