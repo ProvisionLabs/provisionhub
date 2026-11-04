@@ -11,7 +11,7 @@ import (
 )
 
 func (s *Store) Installations(ctx context.Context) ([]plugins.Installation, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT plugin_id,version,source,installation_path,checksum,installed_at,state FROM installed_plugins ORDER BY plugin_id,version")
+	rows, err := s.db.QueryContext(ctx, "SELECT plugin_id,version,source,installation_path,checksum,installed_at,state,content_checksum FROM installed_plugins ORDER BY plugin_id,version")
 	if err != nil {
 		return nil, err
 	}
@@ -20,7 +20,7 @@ func (s *Store) Installations(ctx context.Context) ([]plugins.Installation, erro
 	for rows.Next() {
 		var item plugins.Installation
 		var stamp string
-		if err := rows.Scan(&item.PluginID, &item.Version, &item.Source, &item.Path, &item.Checksum, &stamp, &item.State); err != nil {
+		if err := rows.Scan(&item.PluginID, &item.Version, &item.Source, &item.Path, &item.Checksum, &stamp, &item.State, &item.ContentChecksum); err != nil {
 			return nil, err
 		}
 		item.InstalledAt, err = time.Parse(time.RFC3339Nano, stamp)
@@ -30,6 +30,21 @@ func (s *Store) Installations(ctx context.Context) ([]plugins.Installation, erro
 		result = append(result, item)
 	}
 	return result, rows.Err()
+}
+
+func (s *Store) SetInstallationContent(ctx context.Context, id, version, digest string) error {
+	result, err := s.db.ExecContext(ctx, "UPDATE installed_plugins SET content_checksum=? WHERE plugin_id=? AND version=? AND state='installing'", digest, id, version)
+	if err != nil {
+		return err
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		return errors.New("installation changed before content validation")
+	}
+	return nil
 }
 func (s *Store) ReserveInstallation(ctx context.Context, item plugins.Installation) error {
 	if !registry.ValidID(item.PluginID) || !registry.ValidVersion(item.Version) || item.State != "installing" || item.Path == "" || len(item.Checksum) != 64 {

@@ -108,6 +108,19 @@ func Checksum(data []byte) string {
 	return hex.EncodeToString(digest[:])
 }
 
+// ContentChecksum is independent of gzip implementations and archive metadata.
+// The manifest digest binds identity/version/paths, and sorted file digests bind
+// every generator input. No file needs to be recompressed during local loading.
+func ContentChecksum(manifest Manifest) string {
+	hash := sha256.New()
+	hash.Write(manifest.Digest[:])
+	for _, file := range manifest.Files {
+		fmt.Fprintf(hash, "%d:%s", len(file.Source), file.Source)
+		hash.Write(file.Digest[:])
+	}
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
 // Extract accepts only portable regular files; callers supply an empty isolated stage.
 // It does not activate packages or run downloaded content.
 func Extract(data []byte, destination string) (Manifest, error) {
