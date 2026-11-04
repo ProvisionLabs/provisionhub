@@ -2,6 +2,13 @@
 
 Checked against the source on November 2, 2026. Repository code and tests take precedence over this summary. Read [AGENTS.md](../AGENTS.md) and inspect current Git state before work.
 
+Plugin Registry v1 work began November 3, 2026. The first increment defines the
+strict static registry contract in `internal/registry` and records distribution
+identity, stable versioning, immutable artifact requirements, and trust boundaries
+in [ADR-0009](adr/0009-static-plugin-registry.md). This contract alone does not
+enable downloading, installation, or plugin management; those increments remain
+pending. Existing local generation behavior is unchanged.
+
 ## Product and decisions
 
 ProvisionHub is a local-first TUI and CLI for composing and generating applications. [ADR-0003](adr/0003-local-first-provisioning.md) retired the original required control plane and queue; [ADR-0005](adr/0005-plugin-composition.md) established technology/plugin composition; [ADR-0006](adr/0006-declarative-local-generation.md) introduced safe local file generation. [ADR-0007](adr/0007-named-project-components.md) introduces named component instances and preserves legacy manifests. Historical ADRs remain unchanged.
