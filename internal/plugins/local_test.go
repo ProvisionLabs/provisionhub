@@ -91,6 +91,7 @@ func TestRejectInvalidPluginDefinitions(t *testing.T) {
 		{"absolute destination", strings.Replace(testPlugin, "destination: package.json", "destination: /escape", 1), ""},
 		{"reserved destination", strings.Replace(testPlugin, "destination: package.json", "destination: CON.txt", 1), ""},
 		{"manifest destination", strings.Replace(testPlugin, "destination: package.json", "destination: ProvisionHub.yaml", 1), ""},
+		{"lock destination", strings.Replace(testPlugin, "destination: package.json", "destination: .provisionhub/plugins.lock.yaml", 1), ""},
 		{"command field", testPlugin + "command: npm install\n", ""},
 		{"duplicate outputs", testPlugin + "  - type: copy\n    source: templates/package.json.tmpl\n    destination: package.json\n", ""},
 		{"unknown field", testPlugin + "surprise: true\n", ""},

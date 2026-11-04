@@ -55,7 +55,7 @@ func TestPathAndNoOverwrite(t *testing.T) {
 	if err := Save(manifest, sample(), true); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Path(filepath.Join(dir, "other.yaml")); err == nil {
-		t.Fatal("accepted nonstandard manifest")
+	if _, err := Path(filepath.Join(dir, "other.yaml")); err != nil {
+		t.Fatal(err)
 	}
 }

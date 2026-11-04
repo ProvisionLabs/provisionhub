@@ -192,6 +192,9 @@ func parse(data []byte) (Manifest, error) {
 		if strings.EqualFold(file.Destination, project.ManifestName) {
 			return m, fmt.Errorf("destination %q is reserved for the project manifest", file.Destination)
 		}
+		if strings.EqualFold(file.Destination, ".provisionhub") || strings.HasPrefix(strings.ToLower(file.Destination), ".provisionhub/") {
+			return m, fmt.Errorf("destination %q is reserved for project metadata", file.Destination)
+		}
 		key := strings.ToLower(file.Destination)
 		for existing := range paths {
 			if existing == key || strings.HasPrefix(existing, key+"/") || strings.HasPrefix(key, existing+"/") {

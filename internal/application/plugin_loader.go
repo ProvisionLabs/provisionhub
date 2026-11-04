@@ -57,7 +57,8 @@ func (s ProjectService) loadPlugins() (plugins.Set, error) {
 	if err != nil {
 		return plugins.Set{}, err
 	}
-	items, err := (PluginManager{}).List(context.Background())
+	manager := s.manager()
+	items, err := manager.List(context.Background())
 	if err != nil {
 		return plugins.Set{}, fmt.Errorf("read managed plugins: %w", err)
 	}
@@ -74,7 +75,7 @@ func (s ProjectService) loadPlugins() (plugins.Set, error) {
 			}
 			continue
 		}
-		manifest, err := (PluginManager{}).check(item)
+		manifest, err := manager.check(item)
 		if err != nil {
 			return plugins.Set{}, err
 		}

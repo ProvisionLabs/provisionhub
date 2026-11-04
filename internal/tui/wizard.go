@@ -11,6 +11,7 @@ import (
 	"github.com/ProvisionLabs/provisionhub/internal/execution"
 	"github.com/ProvisionLabs/provisionhub/internal/planning"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
+	"github.com/ProvisionLabs/provisionhub/internal/projectlock"
 )
 
 type wizardStep uint8
@@ -36,6 +37,11 @@ type projectAppliedMsg struct {
 	err    error
 }
 
+type projectLockMsg struct {
+	lock projectlock.Lock
+	err  error
+}
+
 type wizard struct {
 	defaultWorkspace    string
 	step                wizardStep
@@ -49,6 +55,7 @@ type wizard struct {
 	confirm             bool
 	applying            bool
 	applyResult         execution.Result
+	lock                projectlock.Lock
 	plan                planning.Plan
 	planOffset          int
 	width               int

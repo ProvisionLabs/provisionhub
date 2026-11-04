@@ -11,6 +11,7 @@ import (
 	"github.com/ProvisionLabs/provisionhub/internal/planning"
 	"github.com/ProvisionLabs/provisionhub/internal/plugins"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
+	"github.com/ProvisionLabs/provisionhub/internal/projectlock"
 )
 
 // PlanProject reads a manifest without inspecting or changing its destination.
@@ -27,7 +28,19 @@ func (s ProjectService) PlanProject(path string) (planning.Plan, error) {
 			Diagnostics: []planning.Diagnostic{{Severity: planning.SeverityError, Code: code, Message: err.Error()}},
 		}, err
 	}
-	return s.PlanManifest(manifest)
+	lock, found, err := projectlock.Load(path)
+	if err != nil {
+		return planning.Plan{Status: planning.StatusInvalid, Diagnostics: []planning.Diagnostic{{Severity: planning.SeverityError, Code: planning.InvalidPlugin, Message: err.Error()}}}, err
+	}
+	if !found {
+		return s.PlanManifest(manifest)
+	}
+	loaded, err := s.loadLockedPlugins(manifest, lock)
+	if err != nil {
+		return planning.Plan{Status: planning.StatusInvalid, Diagnostics: []planning.Diagnostic{{Severity: planning.SeverityError, Code: planning.InvalidPlugin, Message: err.Error()}}}, err
+	}
+	plan := planning.BuildWithPlugins(manifest, s.catalog, loaded)
+	return plan, nil
 }
 
 // PlanManifest shares pure planning between saved projects and unsaved TUI input.
@@ -115,7 +128,16 @@ func (s ProjectService) freshInputs(file string, reviewed planning.Plan) (projec
 	if err != nil {
 		return project.Manifest{}, plugins.Set{}, err
 	}
-	loaded, err := s.loadPlugins()
+	lock, found, err := projectlock.Load(file)
+	if err != nil {
+		return project.Manifest{}, plugins.Set{}, err
+	}
+	var loaded plugins.Set
+	if found {
+		loaded, err = s.loadLockedPlugins(manifest, lock)
+	} else {
+		loaded, err = s.loadPlugins()
+	}
 	if err != nil {
 		return project.Manifest{}, plugins.Set{}, err
 	}

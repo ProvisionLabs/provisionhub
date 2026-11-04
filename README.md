@@ -89,6 +89,8 @@ For development and testing commands, see the [development guide](docs/developme
 
 ### Preview a generation plan
 
+For reproducible projects, run `provisionhub project lock --file ./my-application/provisionhub.yaml` after installing generators. The lock at `.provisionhub/plugins.lock.yaml` pins exact plugin content. Use `project lock --check` to verify it, `--update` for an intentional version change, and `--restore` to install missing exact official releases. The Create Project result screen offers `l` to create a lock. See [project plugin locking](docs/project-plugin-locking.md).
+
 ```sh
 provisionhub project plan --file ./my-application/provisionhub.yaml
 provisionhub project plan --file ./my-application/provisionhub.yaml --output json

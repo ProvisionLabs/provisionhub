@@ -2,15 +2,19 @@ package application
 
 import (
 	"context"
+	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ProvisionLabs/provisionhub/internal/plugins"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
+	"github.com/ProvisionLabs/provisionhub/internal/projectlock"
 	"github.com/ProvisionLabs/provisionhub/internal/registry"
 )
 
@@ -46,7 +50,7 @@ func TestOfficialPackageLifecycle(t *testing.T) {
 		id := "official/" + strings.TrimPrefix(manifest.ID, "official-")
 		index.Plugins = append(index.Plugins, registry.Plugin{ID: id, ManifestID: manifest.ID, Publisher: "ProvisionLabs", Name: manifest.Name, Description: manifest.Description, TechnologyID: manifest.TechnologyID, Category: string(manifest.Category), Versions: []registry.Release{{Version: manifest.Version, MinimumCoreVersion: registry.CoreVersion, Artifact: server.URL + "/releases/download/" + manifest.ID + "-v" + manifest.Version + "/plugin.tar.gz", SHA256: plugins.Checksum(packages[manifest.ID])}}})
 	}
-	manager := PluginManager{DataDirectory: t.TempDir(), Source: fixedRegistry{index}, HTTP: server.Client()}
+	manager := PluginManager{DataDirectory: t.TempDir(), HTTP: server.Client()}
 	t.Setenv("PROVISIONHUB_DATA_DIR", manager.DataDirectory)
 	t.Setenv("PROVISIONHUB_PLUGINS", "")
 	for _, plugin := range index.Plugins {
@@ -55,8 +59,15 @@ func TestOfficialPackageLifecycle(t *testing.T) {
 			t.Fatal(item, err)
 		}
 	}
-	server.Close() // Generation and restart must require no registry connection.
+	cache, err := json.Marshal(registry.Snapshot{Index: index, FetchedAt: time.Now().UTC(), URL: registry.OfficialURL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(manager.DataDirectory, "registry-cache.json"), cache, 0600); err != nil {
+		t.Fatal(err)
+	}
 	restarted := NewProjectService()
+	restarted.pluginManager = &manager
 	destination := filepath.Join(t.TempDir(), "multi component café")
 	components := []project.Component{{Name: "api", Type: "backend", Technology: "nestjs"}, {Name: "billing", Type: "backend", Technology: "nestjs"}, {Name: "web", Type: "frontend", Technology: "nextjs"}, {Name: "admin", Type: "frontend", Technology: "nextjs"}}
 	manifest, err := restarted.ValidateComponentsInput("demo", destination, components)
@@ -70,6 +81,68 @@ func TestOfficialPackageLifecycle(t *testing.T) {
 	created, applied, err := restarted.CreateAndApplyComponentProject("demo", destination, components, plan)
 	if err != nil || len(applied.Created) != 40 {
 		t.Fatal(len(applied.Created), err)
+	}
+	lock, err := restarted.LockProject(created.ManifestPath, false, false)
+	if err != nil || len(lock.Plugins) != 2 {
+		t.Fatal(lock, err)
+	}
+	hashes := map[string]string{}
+	for _, name := range applied.Created {
+		data, err := os.ReadFile(filepath.Join(destination, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		hashes[name] = plugins.Checksum(data)
+	}
+	secondManager := PluginManager{DataDirectory: t.TempDir(), Source: fixedRegistry{index}, HTTP: server.Client()}
+	second := NewProjectService()
+	second.pluginManager = &secondManager
+	secondDestination := filepath.Join(t.TempDir(), "second project")
+	secondCreated, err := second.CreateComponentProject("demo", secondDestination, components)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstLockPath, err := projectlock.Path(created.ManifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondLockPath, err := projectlock.Path(secondCreated.ManifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lockBytes, err := os.ReadFile(firstLockPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(secondLockPath), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(secondLockPath, lockBytes, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := second.RestoreLockedProject(context.Background(), secondCreated.ManifestPath); err != nil {
+		t.Fatal(err)
+	}
+	secondManager.Source = fixedRegistry{registry.Index{}} // planning must ignore changed registry metadata
+	server.Close()                                         // Generation on both machines must now work offline.
+	secondPlan, err := second.PlanProject(secondCreated.ManifestPath)
+	if err != nil || !secondPlan.Executable {
+		t.Fatal(secondPlan, err)
+	}
+	secondApplied, err := second.ApplyProject(secondCreated.ManifestPath, secondPlan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondHashes := map[string]string{}
+	for _, name := range secondApplied.Created {
+		data, err := os.ReadFile(filepath.Join(secondDestination, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		secondHashes[name] = plugins.Checksum(data)
+	}
+	if !maps.Equal(hashes, secondHashes) {
+		t.Fatalf("generated output differs: first=%v second=%v", hashes, secondHashes)
 	}
 	for _, component := range components {
 		data, err := os.ReadFile(filepath.Join(destination, component.Name, "package.json"))

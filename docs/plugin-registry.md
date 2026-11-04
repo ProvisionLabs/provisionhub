@@ -168,9 +168,9 @@ explicit conflict. Unhealthy managed packages are excluded and reported by
 `plugin list`; explicitly selecting one returns its diagnostic. Unmanaged paths
 are never modified by install/update/remove.
 
-Project manifests currently declare technologies, not plugin locks. Updating
-globally retains previous versions, and multiple installed candidates block
-generation until a session selection is provided:
+Project manifests declare technologies, while optional [project plugin locks](project-plugin-locking.md)
+pin exact release artifacts and loaded content. Unlocked projects still require
+a session selection when multiple installed candidates exist:
 
 ```sh
 provisionhub project plan --file ./demo/provisionhub.yaml --plugin-version official/nestjs@1.1.0
@@ -178,13 +178,11 @@ provisionhub project apply --file ./demo/provisionhub.yaml --plugin-version offi
 ```
 
 Repeat the flag for additional plugins. The TUI's Installed → `s` selects a
-version for that session. No arbitrary highest-version selection or silent project
-upgrade occurs. Removing an old version is an explicit action that can affect
-projects relying on it; there is no global inventory of portable projects.
-Future project-specific locks should record ID, version, source and checksum,
-separately from global installations and session choices. Portable manifests
-must never contain local installation paths. This milestone does not implement
-that lockfile or restore an uninstalled project dependency automatically.
+version for that session. Use `project lock --file ./demo/provisionhub.yaml` to
+persist the exact resolution, `--check` to validate, `--update` to change it,
+or `--restore` to fetch missing exact official releases. Removing an old version
+can make a locked project unavailable until restored. Local plugins require the
+same content to be supplied separately on another machine.
 
 ## Validation
 
