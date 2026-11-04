@@ -25,7 +25,7 @@ func TestInitialView(t *testing.T) {
 	if !view.AltScreen {
 		t.Fatal("TUI must use the alternate screen")
 	}
-	for _, part := range []string{"PROVISIONHUB", application.Info().Tagline, "› Create Project", "Open Existing Project", "Plugin Marketplace", "Settings"} {
+	for _, part := range []string{"PROVISIONHUB", application.Info().Tagline, "› Create Project", "Open Existing Project", "Plugins", "Settings"} {
 		if !strings.Contains(view.Content, part) {
 			t.Errorf("initial view missing %q", part)
 		}
@@ -41,7 +41,10 @@ func TestNavigationAndBack(t *testing.T) {
 		for range index {
 			press(m, tea.KeyDown, "")
 		}
-		press(m, tea.KeyEnter, "")
+		command := press(m, tea.KeyEnter, "")
+		if item.screen == pluginMarketplace && command != nil {
+			m.Update(command())
+		}
 		if m.nav.current != item.screen {
 			t.Fatalf("selection %q did not open its screen", item.label)
 		}
