@@ -23,5 +23,6 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(newProjectCommand())
 	root.AddCommand(newTechnologiesCommand())
 	root.AddCommand(newSettingsCommand())
+	root.AddCommand(newPluginCommand())
 	return root
 }

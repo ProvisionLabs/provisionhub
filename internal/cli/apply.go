@@ -13,12 +13,17 @@ import (
 
 func newApplyCommand() *cobra.Command {
 	var file, pluginDirectory string
+	var pluginVersions []string
 	var yes bool
 	command := &cobra.Command{
 		Use: "apply", Short: "Review and generate local project files from installed plugins",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			service, err := application.NewProjectServiceWithPlugins(pluginDirectory)
+			if err != nil {
+				return err
+			}
+			service, err = service.WithPluginVersions(pluginVersions)
 			if err != nil {
 				return err
 			}
@@ -65,6 +70,7 @@ func newApplyCommand() *cobra.Command {
 	}
 	command.Flags().StringVar(&file, "file", "", "Path to provisionhub.yaml (required)")
 	command.Flags().StringVar(&pluginDirectory, "plugins", "", "Local plugin directory (required for generation)")
+	command.Flags().StringArrayVar(&pluginVersions, "plugin-version", nil, "Select installed namespace/name@x.y.z (repeatable)")
 	command.Flags().BoolVar(&yes, "yes", false, "Approve the reviewed plan without an interactive prompt")
 	_ = command.MarkFlagRequired("file")
 	return command
