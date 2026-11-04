@@ -260,3 +260,50 @@ func TestInstallationPersistenceAndUniqueReservation(t *testing.T) {
 		db.Close()
 	}
 }
+
+func TestPartialDownloadAndCancellationNeverActivate(t *testing.T) {
+	for _, kind := range []string{"partial", "cancel"} {
+		t.Run(kind, func(t *testing.T) {
+			manager, index, _ := managerFixture(t)
+			started := make(chan struct{})
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if kind == "partial" {
+					w.Header().Set("Content-Length", "1000")
+					w.Write([]byte("short"))
+					return
+				}
+				w.WriteHeader(200)
+				w.(http.Flusher).Flush()
+				close(started)
+				<-r.Context().Done()
+			}))
+			defer server.Close()
+			manager.HTTP = server.Client()
+			index.Plugins[0].Versions[0].Artifact = server.URL + "/releases/download/official-nestjs-v1.1.0/plugin.tar.gz"
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := make(chan error, 1)
+			go func() { _, err := manager.InstallFrom(ctx, index, "official/nestjs", ""); done <- err }()
+			if kind == "cancel" {
+				select {
+				case <-started:
+					cancel()
+				case <-time.After(5 * time.Second):
+					t.Fatal("download did not start")
+				}
+			}
+			select {
+			case err := <-done:
+				if err == nil {
+					t.Fatal("invalid download installed")
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("download did not stop")
+			}
+			items, err := manager.List(context.Background())
+			if err != nil || len(items) != 0 {
+				t.Fatal(items, err)
+			}
+		})
+	}
+}

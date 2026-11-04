@@ -36,6 +36,16 @@ func TestRegistry(t *testing.T) {
 	}
 }
 func TestInvalidRegistry(t *testing.T) {
+	for _, data := range []string{`{"schemaVersion":1,"schemaVersion":2}`, `{"schemaVersion":1,"plugins":[{"id":"official/a","id":"official/b"}]}`} {
+		if _, err := Parse([]byte(data)); err == nil {
+			t.Fatal("duplicate object key accepted")
+		}
+	}
+	for _, id := range []string{"official/con", "aux/example", "official/com1"} {
+		if ValidID(id) {
+			t.Fatal("nonportable identity", id)
+		}
+	}
 	for _, change := range []func(*Index){
 		func(i *Index) { i.SchemaVersion = 2 },
 		func(i *Index) { i.Plugins = append(i.Plugins, i.Plugins[0]) },

@@ -4,8 +4,10 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -30,6 +32,23 @@ func TestPackageDeterministicAndComplete(t *testing.T) {
 	os.Remove(filepath.Join(folder, "templates", "package.json.tmpl"))
 	if _, _, err := Package(folder); err == nil {
 		t.Fatal("missing input accepted")
+	}
+}
+
+func TestDecompressionBombAndFileCountLimits(t *testing.T) {
+	var compressed bytes.Buffer
+	writer := gzip.NewWriter(&compressed)
+	writer.Write([]byte(strings.Repeat("x", int(MaxExpandedSize)+MaxPackageFiles*1024+1)))
+	writer.Close()
+	if _, err := Extract(compressed.Bytes(), t.TempDir()); err == nil {
+		t.Fatal("decompression bomb accepted")
+	}
+	headers := make([]tar.Header, MaxPackageFiles+1)
+	for i := range headers {
+		headers[i] = tar.Header{Name: fmt.Sprintf("file-%04d", i), Typeflag: tar.TypeReg}
+	}
+	if _, err := Extract(maliciousArchive(t, headers...), t.TempDir()); err == nil {
+		t.Fatal("file count limit ignored")
 	}
 }
 func maliciousArchive(t *testing.T, headers ...tar.Header) []byte {
