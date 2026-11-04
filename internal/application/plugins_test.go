@@ -242,7 +242,7 @@ func TestInstallationPersistenceAndUniqueReservation(t *testing.T) {
 			t.Fatal(err)
 		}
 		if i == 0 {
-			item := plugins.Installation{PluginID: "official/nestjs", Version: "1.1.0", Source: "official", Path: filepath.Join(t.TempDir(), "package"), Checksum: strings.Repeat("a", 64), State: "installing", InstalledAt: time.Now().UTC()}
+			item := plugins.Installation{PluginID: "official/nestjs", Version: "1.1.0", Source: "official", Path: filepath.Join(t.TempDir(), "package"), Checksum: strings.Repeat("a", 64), State: "installing", InstalledAt: time.Now().UTC(), MinimumCoreVersion: registry.CoreVersion}
 			if err := db.ReserveInstallation(ctx, item); err != nil {
 				t.Fatal(err)
 			}
@@ -258,6 +258,27 @@ func TestInstallationPersistenceAndUniqueReservation(t *testing.T) {
 			t.Fatal(fmt.Sprint(items), err)
 		}
 		db.Close()
+	}
+}
+
+func TestInstalledCompatibilitySurvivesOfflineRestart(t *testing.T) {
+	manager, index, _ := managerFixture(t)
+	item, err := manager.InstallFrom(context.Background(), index, "official/nestjs", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.MinimumCoreVersion != registry.CoreVersion {
+		t.Fatal("compatibility not persisted", item)
+	}
+	item.MinimumCoreVersion = "9.0.0"
+	if _, err := manager.check(item); err == nil {
+		t.Fatal("core downgrade compatibility ignored")
+	}
+	index.Plugins[0].Versions[0].MinimumCoreVersion = "9.0.0"
+	other := manager
+	other.DataDirectory = t.TempDir()
+	if _, err := other.InstallFrom(context.Background(), index, "official/nestjs", ""); err == nil {
+		t.Fatal("incompatible installation")
 	}
 }
 
