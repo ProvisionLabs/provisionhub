@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ProvisionLabs/provisionhub/internal/application"
-	"github.com/ProvisionLabs/provisionhub/internal/project"
 )
 
 func executeCLI(args ...string) (string, error) {
@@ -16,11 +15,9 @@ func executeCLI(args ...string) (string, error) {
 }
 
 func executeCLIWithDatabase(databasePath string, args ...string) (string, error) {
-	service := application.NewProjectService()
-	saved := application.SavedProjects{DatabasePath: databasePath, Projects: service}
 	settings := application.NewLocalSettings()
 	settings.Path = databasePath
-	command := newRootCommand(func() (application.SavedProjects, error) { return saved, nil }, settings)
+	command := newRootCommand(settings)
 	var output bytes.Buffer
 	command.SetOut(&output)
 	command.SetArgs(args)
@@ -28,98 +25,74 @@ func executeCLIWithDatabase(databasePath string, args ...string) (string, error)
 	return output.String(), err
 }
 
-func TestProjectInitCommand(t *testing.T) {
-	destination := filepath.Join(t.TempDir(), "new project")
-	args := []string{"project", "init", "--name", "my-app", "--path", destination, "--backend", "nestjs", "--frontend", "nextjs", "--database", "postgresql"}
-	output, err := executeCLI(args...)
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(destination, project.ManifestName)
-	if strings.TrimSpace(output) != path {
-		t.Fatalf("output = %q, want path %q", output, path)
-	}
-	manifest, err := project.Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if manifest.Metadata.Name != "my-app" || manifest.Spec.Frontend.Technology != "nextjs" {
-		t.Fatalf("manifest = %+v", manifest)
-	}
-	if _, err := executeCLI(args...); err == nil || !strings.Contains(err.Error(), "already exists") {
-		t.Fatalf("existing manifest error = %v", err)
-	}
-}
-
-func TestProjectInitRejectsInvalidInputs(t *testing.T) {
-	for _, test := range []struct {
-		name string
-		args []string
-		want string
-	}{
-		{"missing required", []string{"project", "init", "--backend", "nestjs"}, "required flag"},
-		{"unknown technology", []string{"project", "init", "--name", "demo", "--path", filepath.Join(t.TempDir(), "demo"), "--backend", "missing"}, "unknown backend"},
-		{"invalid name", []string{"project", "init", "--name", "Bad Name", "--path", filepath.Join(t.TempDir(), "demo"), "--backend", "nestjs"}, "project name"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			_, err := executeCLI(test.args...)
-			if err == nil || !strings.Contains(err.Error(), test.want) {
-				t.Fatalf("error = %v, want %q", err, test.want)
-			}
-		})
-	}
-}
-
-func TestProjectInitOptionalCategories(t *testing.T) {
-	destination := filepath.Join(t.TempDir(), "backend-only")
-	_, err := executeCLI("project", "init", "--name", "backend-only", "--path", destination, "--backend", "go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(filepath.Join(destination, project.ManifestName))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(data), "frontend:") || strings.Contains(string(data), "database:") {
-		t.Fatalf("optional categories should be omitted: %s", data)
-	}
-}
-
-func TestProjectInitFromMultiComponentManifest(t *testing.T) {
+func TestProjectPlanAndApplyWithoutMetadata(t *testing.T) {
 	base := t.TempDir()
-	sourceDir := filepath.Join(base, "source")
-	manifest := project.Manifest{APIVersion: project.APIVersion, Kind: project.Kind,
-		Metadata: project.Metadata{Name: "multi-service-demo"}, Spec: project.Spec{Components: []project.Component{
-			{Name: "web", Type: "frontend", Technology: "nextjs"},
-			{Name: "api", Type: "backend", Technology: "nestjs"},
-			{Name: "billing", Type: "backend", Technology: "nestjs"},
-		}}}
-	source, err := project.Save(sourceDir, manifest)
-	if err != nil {
+	blocked := filepath.Join(base, "blocked-data")
+	if err := os.WriteFile(blocked, []byte("keep"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	destination := filepath.Join(base, "output")
-	output, err := executeCLI("project", "init", "--from", source, "--path", destination)
-	if err != nil {
+	t.Setenv("PROVISIONHUB_DATA_DIR", blocked)
+	plugins := filepath.Join(base, "plugins", "nestjs")
+	if err := os.MkdirAll(filepath.Join(plugins, "templates"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	created := filepath.Join(destination, project.ManifestName)
-	if strings.TrimSpace(output) != created {
-		t.Fatalf("output = %q", output)
+	definition := `apiVersion: provisionhub.dev/plugin/v1alpha1
+id: official-nestjs
+version: 1.0.0
+technologyId: nestjs
+category: backend
+name: NestJS
+description: Local generator
+capability: generate_backend
+files:
+  - type: template
+    source: templates/package.json.tmpl
+    destination: package.json
+`
+	if err := os.WriteFile(filepath.Join(plugins, "plugin.yaml"), []byte(definition), 0644); err != nil {
+		t.Fatal(err)
 	}
-	copy, err := project.Load(created)
-	if err != nil || len(copy.Spec.Components) != 3 || copy.Metadata.Name != "multi-service-demo" {
-		t.Fatalf("copied manifest = %+v, %v", copy, err)
+	if err := os.WriteFile(filepath.Join(plugins, "templates", "package.json.tmpl"), []byte(`{"name":"{{componentName}}"}`), 0644); err != nil {
+		t.Fatal(err)
 	}
-	plan, err := executeCLI("project", "plan", "--file", created)
-	if err != nil || !strings.Contains(plan, "component/api") || !strings.Contains(plan, "component/billing") || !strings.Contains(plan, "component/web") {
-		t.Fatalf("component plan = %s, %v", plan, err)
+	destination := filepath.Join(base, "generated project")
+	flags := []string{"--name", "demo", "--path", destination, "--component", "api:backend:nestjs", "--component", "billing:backend:nestjs", "--plugins", filepath.Dir(plugins)}
+	output, err := executeCLI(append([]string{"project", "plan"}, flags...)...)
+	if err != nil || !strings.Contains(output, "component/api") || !strings.Contains(output, "component/billing") {
+		t.Fatal(output, err)
 	}
-	if _, err := executeCLI("project", "init", "--from", source, "--path", destination); err == nil || !strings.Contains(err.Error(), "already exists") {
-		t.Fatalf("overwritten manifest: %v", err)
+	if _, err := os.Stat(destination); !os.IsNotExist(err) {
+		t.Fatal("planning wrote output")
 	}
-	if _, err := executeCLI("project", "init", "--from", source, "--path", filepath.Join(base, "conflict"), "--backend", "nestjs"); err == nil || !strings.Contains(err.Error(), "cannot be combined") {
-		t.Fatalf("mixed flags accepted: %v", err)
+	if _, err := executeCLI(append([]string{"project", "apply"}, flags...)...); err == nil {
+		t.Fatal("apply skipped approval", err)
+	}
+	output, err = executeCLI(append(append([]string{"project", "apply"}, flags...), "--yes")...)
+	if err != nil || !strings.Contains(output, "Created 2 files") {
+		t.Fatal(output, err)
+	}
+	for _, name := range []string{"api", "billing"} {
+		if _, err := os.Stat(filepath.Join(destination, name, "package.json")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []string{"provisionhub.yaml", filepath.Join(".provisionhub", "plugins.lock.yaml")} {
+		if _, err := os.Stat(filepath.Join(destination, name)); !os.IsNotExist(err) {
+			t.Fatalf("unexpected metadata %s: %v", name, err)
+		}
+	}
+}
+
+func TestProjectFlagsValidateComponents(t *testing.T) {
+	for _, tc := range []struct{ component, want string }{
+		{"api:nestjs", "name:type:technology"},
+		{"api:backend:unknown", "unknown backend"},
+		{"Bad:backend:nestjs", "component name"},
+	} {
+		_, err := executeCLI("project", "plan", "--name", "demo", "--path", filepath.Join(t.TempDir(), "out"), "--component", tc.component)
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("%q: %v", tc.component, err)
+		}
 	}
 }
 

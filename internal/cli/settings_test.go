@@ -26,7 +26,7 @@ func TestSettingsCommandsAndOfflineGeneration(t *testing.T) {
 	if output, err := executeCLI("settings", "git-status"); err != nil || strings.TrimSpace(output) != "[]" {
 		t.Fatal(output, err)
 	}
-	if _, err := executeCLI("project", "init", "--name", "offline", "--path", filepath.Join(base, "offline"), "--backend", "nestjs"); err != nil {
+	if _, err := executeCLI("project", "plan", "--name", "offline", "--path", filepath.Join(base, "offline"), "--component", "api:backend:nestjs"); err != nil {
 		t.Fatal("generation now requires login", err)
 	}
 }

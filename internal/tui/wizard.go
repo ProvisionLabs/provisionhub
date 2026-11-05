@@ -11,7 +11,6 @@ import (
 	"github.com/ProvisionLabs/provisionhub/internal/execution"
 	"github.com/ProvisionLabs/provisionhub/internal/planning"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
-	"github.com/ProvisionLabs/provisionhub/internal/projectlock"
 )
 
 type wizardStep uint8
@@ -37,11 +36,6 @@ type projectAppliedMsg struct {
 	err    error
 }
 
-type projectLockMsg struct {
-	lock projectlock.Lock
-	err  error
-}
-
 type wizard struct {
 	defaultWorkspace    string
 	step                wizardStep
@@ -55,7 +49,6 @@ type wizard struct {
 	confirm             bool
 	applying            bool
 	applyResult         execution.Result
-	lock                projectlock.Lock
 	plan                planning.Plan
 	planOffset          int
 	width               int
@@ -110,7 +103,7 @@ func (w *wizard) focusField(index int) tea.Cmd {
 }
 
 // update returns a command and whether the wizard should return to Home.
-func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService, saved application.SavedProjects, savedErr error) (tea.Cmd, bool) {
+func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService) (tea.Cmd, bool) {
 	if w.saving || w.applying {
 		return nil, false
 	}
@@ -124,9 +117,9 @@ func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService,
 			case "y":
 				w.confirm = false
 				w.applying = true
-				file, plan := w.result.ManifestPath, w.plan
+				spec, destination, plan := w.result.Manifest, w.result.ManifestPath, w.plan
 				return func() tea.Msg {
-					result, err := service.ApplyProject(file, plan)
+					result, err := service.ApplySpecification(spec, destination, plan)
 					return projectAppliedMsg{result: result, err: err}
 				}, false
 			}
@@ -137,7 +130,7 @@ func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService,
 			w.preview = false
 		case "g":
 			if w.step == resultStep && w.plan.Executable && w.applyResult.Created == nil {
-				if err := service.PreflightProject(w.result.ManifestPath, w.plan); err != nil {
+				if err := service.PreflightSpecification(w.result.Manifest, w.result.ManifestPath, w.plan); err != nil {
 					w.err = err.Error()
 				} else {
 					w.confirm = true
@@ -152,7 +145,7 @@ func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService,
 		return nil, false
 	}
 	if w.step != projectInfoStep {
-		return w.updateComponents(msg, service, saved, savedErr)
+		return w.updateComponents(msg, service)
 	}
 	switch key {
 	case "esc":
@@ -260,7 +253,7 @@ func (w *wizard) reviewAction() string {
 	if w.plan.Executable {
 		return "Generate Project"
 	}
-	return "Save Manifest Only"
+	return "Generation unavailable"
 }
 
 func (w *wizard) compactLines(service application.ProjectService) []string {

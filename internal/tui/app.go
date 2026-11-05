@@ -62,25 +62,18 @@ type Model struct {
 	preferences      preferences
 	workspaceRequest uint64
 	pluginBrowser    pluginBrowser
-	savedBrowser     savedBrowser
-	saved            application.SavedProjects
-	savedErr         error
 	localSettings    *application.LocalSettings
 }
 
 func NewModel(info application.AppInfo) *Model {
 	service := application.NewProjectService()
-	saved, err := application.NewSavedProjects(service)
-	m := newModelWithPersistence(info, service, saved, application.NewLocalSettings())
-	m.savedErr = err
-	m.savedBrowser.initErr = err
-	return m
+	return newModelWithPersistence(info, service, application.NewLocalSettings())
 }
 
-func newModelWithPersistence(info application.AppInfo, service application.ProjectService, saved application.SavedProjects, localSettings *application.LocalSettings) *Model {
+func newModelWithPersistence(info application.AppInfo, service application.ProjectService, localSettings *application.LocalSettings) *Model {
 	h := help.New()
 	h.SetWidth(48)
-	return &Model{info: info, service: service, saved: saved, localSettings: localSettings, help: h, width: 80, height: 24, preferences: newPreferences(localSettings), pluginBrowser: newPluginBrowser(application.PluginManager{}), savedBrowser: newSavedBrowser(saved)}
+	return &Model{info: info, service: service, localSettings: localSettings, help: h, width: 80, height: 24, preferences: newPreferences(localSettings), pluginBrowser: newPluginBrowser(application.PluginManager{})}
 }
 
 // NewModelWithPlugins loads an explicit local plugin directory for this session.
@@ -89,19 +82,12 @@ func NewModelWithPlugins(info application.AppInfo, directory string) (*Model, er
 	if err != nil {
 		return nil, err
 	}
-	saved, savedErr := application.NewSavedProjects(service)
-	m := newModelWithPersistence(info, service, saved, application.NewLocalSettings())
-	m.savedErr = savedErr
-	m.savedBrowser.initErr = savedErr
-	return m, nil
+	return newModelWithPersistence(info, service, application.NewLocalSettings()), nil
 }
 
 func (m *Model) Init() tea.Cmd { return nil }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if _, ok := msg.(savedResultMsg); ok {
-		return m, m.savedBrowser.receive(msg.(savedResultMsg))
-	}
 	if _, ok := msg.(pluginResultMsg); ok {
 		cmd, _ := m.pluginBrowser.update(msg)
 		return m, cmd
@@ -134,18 +120,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.wizard.created(msg)
 	case projectAppliedMsg:
 		m.wizard.applied(msg)
-	case projectLockMsg:
-		if msg.err != nil {
-			m.wizard.err = msg.err.Error()
-		} else {
-			m.wizard.lock = msg.lock
-			m.wizard.err = ""
-		}
 	case tea.KeyPressMsg:
 		if m.nav.current == createProject && m.wizard.applying {
-			return m, nil
-		}
-		if m.nav.current == openProject && m.savedBrowser.busy && (m.savedBrowser.state == "applyConfirm" || m.savedBrowser.state == "lockConfirm" || m.savedBrowser.state == "lock" || m.savedBrowser.state == "cleanupConfirm") {
 			return m, nil
 		}
 		if msg.String() == "ctrl+c" {
@@ -168,13 +144,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, cmd
 		}
-		if m.nav.current == openProject {
-			cmd, back := m.savedBrowser.update(msg)
-			if back {
-				m.nav.back()
-			}
-			return m, cmd
-		}
 		if m.nav.current == settings {
 			cmd, back := m.preferences.update(msg)
 			if back {
@@ -183,7 +152,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		if m.nav.current == createProject && (m.wizard.step == projectInfoStep || m.wizard.step == componentNameStep) {
-			cmd, back := m.wizard.update(msg, m.service, m.saved, m.savedErr)
+			cmd, back := m.wizard.update(msg, m.service)
 			if back {
 				m.nav.back()
 			}
@@ -193,7 +162,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.quit):
 			return m, tea.Quit
 		case m.nav.current == createProject:
-			cmd, back := m.wizard.update(msg, m.service, m.saved, m.savedErr)
+			cmd, back := m.wizard.update(msg, m.service)
 			if back {
 				m.nav.back()
 			}
@@ -208,12 +177,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.nav.selectItem()
 			if m.nav.current == pluginMarketplace {
 				return m, m.pluginBrowser.start("load", "", "")
-			}
-			if m.nav.current == openProject {
-				m.saved.Projects = m.service
-				m.savedBrowser = newSavedBrowser(m.saved)
-				m.savedBrowser.initErr = m.savedErr
-				return m, m.savedBrowser.load()
 			}
 			if m.nav.current == settings {
 				return m, m.preferences.load()
@@ -243,11 +206,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) View() tea.View {
 	width, height := max(1, m.width), max(1, m.height)
-	if m.nav.current == openProject {
-		view := tea.NewView(m.savedBrowser.view(width, height))
-		view.AltScreen = true
-		return view
-	}
 	if m.nav.current == pluginMarketplace {
 		view := tea.NewView(m.pluginBrowser.view(width, height))
 		view.AltScreen = true

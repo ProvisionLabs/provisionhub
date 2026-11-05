@@ -42,10 +42,9 @@ files:
 		t.Fatal(err)
 	}
 	databasePath := filepath.Join(base, "data", "provisionhub.db")
-	saved := application.SavedProjects{DatabasePath: databasePath, Projects: service}
 	settings := application.NewLocalSettings()
 	settings.Path = databasePath
-	m := newModelWithPersistence(application.Info(), service, saved, settings)
+	m := newModelWithPersistence(application.Info(), service, settings)
 	return m, filepath.Join(base, "project with spaces")
 }
 
@@ -116,7 +115,7 @@ func TestTUIReviewGeneratesProjectAfterExplicitEnter(t *testing.T) {
 	}
 }
 
-func TestTUIApplyFailureKeepsManifestAndAllowsReviewRetry(t *testing.T) {
+func TestTUIApplyFailureAllowsReviewedRetry(t *testing.T) {
 	m, destination := generatorModel(t)
 	reviewGeneratorWizard(t, m, destination)
 	if err := os.MkdirAll(destination, 0o755); err != nil {
@@ -133,14 +132,14 @@ func TestTUIApplyFailureKeepsManifestAndAllowsReviewRetry(t *testing.T) {
 		t.Fatal("generation command missing")
 	}
 	m.Update(cmd())
-	if m.wizard.step != resultStep || !strings.Contains(m.wizard.err, "already exists") || !strings.Contains(strings.Join(m.wizard.lines(m.service, 64), "\n"), "generation incomplete") {
+	if m.wizard.step != resultStep || !strings.Contains(m.wizard.err, "already exists") || !strings.Contains(strings.Join(m.wizard.lines(m.service, 64), "\n"), "Generation incomplete") {
 		t.Fatalf("failure state: step %v, error %q", m.wizard.step, m.wizard.err)
 	}
 	if data, err := os.ReadFile(filepath.Join(destination, "api", "package.json")); err != nil || string(data) != "existing" {
 		t.Fatalf("conflicting output changed: %v %s", err, data)
 	}
-	if _, err := os.Stat(m.wizard.result.ManifestPath); err != nil {
-		t.Fatal("manifest lost")
+	if _, err := os.Stat(filepath.Join(destination, "provisionhub.yaml")); !os.IsNotExist(err) {
+		t.Fatal("generation wrote a manifest")
 	}
 	if err := os.Remove(filepath.Join(destination, "api", "package.json")); err != nil {
 		t.Fatal(err)

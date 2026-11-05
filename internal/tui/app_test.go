@@ -14,10 +14,9 @@ func newTestModel(t *testing.T) *Model {
 	t.Helper()
 	databasePath := filepath.Join(t.TempDir(), "provisionhub.db")
 	service := application.NewProjectService()
-	saved := application.SavedProjects{DatabasePath: databasePath, Projects: service}
 	settings := application.NewLocalSettings()
 	settings.Path = databasePath
-	return newModelWithPersistence(application.Info(), service, saved, settings)
+	return newModelWithPersistence(application.Info(), service, settings)
 }
 
 func press(m *Model, code rune, text string) tea.Cmd {
@@ -34,7 +33,7 @@ func TestInitialView(t *testing.T) {
 	if !view.AltScreen {
 		t.Fatal("TUI must use the alternate screen")
 	}
-	for _, part := range []string{"PROVISIONHUB", application.Info().Tagline, "› Create Project", "My Projects", "Plugins", "Settings"} {
+	for _, part := range []string{"PROVISIONHUB", application.Info().Tagline, "› Create Project", "Plugins", "Settings"} {
 		if !strings.Contains(view.Content, part) {
 			t.Errorf("initial view missing %q", part)
 		}

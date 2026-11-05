@@ -8,12 +8,10 @@ import (
 
 // NewRootCommand constructs the command tree without starting an interactive session.
 func NewRootCommand() *cobra.Command {
-	return newRootCommand(func() (application.SavedProjects, error) {
-		return application.NewSavedProjects(application.NewProjectService())
-	}, application.NewLocalSettings())
+	return newRootCommand(application.NewLocalSettings())
 }
 
-func newRootCommand(saved func() (application.SavedProjects, error), localSettings *application.LocalSettings) *cobra.Command {
+func newRootCommand(localSettings *application.LocalSettings) *cobra.Command {
 	info := application.Info()
 	root := &cobra.Command{
 		Use:           "provisionhub",
@@ -26,7 +24,7 @@ func newRootCommand(saved func() (application.SavedProjects, error), localSettin
 		},
 	}
 	root.AddCommand(newVersionCommand())
-	root.AddCommand(newProjectCommand(saved))
+	root.AddCommand(newProjectCommand())
 	root.AddCommand(newTechnologiesCommand())
 	root.AddCommand(newSettingsCommand(localSettings))
 	root.AddCommand(newPluginCommand())

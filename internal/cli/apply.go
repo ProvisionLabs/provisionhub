@@ -12,7 +12,8 @@ import (
 )
 
 func newApplyCommand() *cobra.Command {
-	var file, pluginDirectory string
+	var pluginDirectory string
+	var specification specificationFlags
 	var pluginVersions []string
 	var yes bool
 	command := &cobra.Command{
@@ -27,7 +28,11 @@ func newApplyCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			plan, err := service.PlanProject(file)
+			spec, err := specification.build(service)
+			if err != nil {
+				return err
+			}
+			plan, err := service.PlanSpecification(spec)
 			if err != nil {
 				return err
 			}
@@ -37,7 +42,7 @@ func newApplyCommand() *cobra.Command {
 			if !plan.Executable {
 				return errors.New("plan is not executable; install generators for every selected technology")
 			}
-			if err := service.PreflightProject(file, plan); err != nil {
+			if err := service.PreflightSpecification(spec, specification.destination, plan); err != nil {
 				return err
 			}
 			if !yes {
@@ -60,7 +65,7 @@ func newApplyCommand() *cobra.Command {
 					return errors.New("generation cancelled")
 				}
 			}
-			result, err := service.ApplyProject(file, plan)
+			result, err := service.ApplySpecification(spec, specification.destination, plan)
 			if err != nil {
 				return err
 			}
@@ -68,10 +73,9 @@ func newApplyCommand() *cobra.Command {
 			return err
 		},
 	}
-	command.Flags().StringVar(&file, "file", "", "Path to provisionhub.yaml (required)")
+	specification.bind(command)
 	command.Flags().StringVar(&pluginDirectory, "plugins", "", "Local plugin directory (required for generation)")
 	command.Flags().StringArrayVar(&pluginVersions, "plugin-version", nil, "Select installed namespace/name@x.y.z (repeatable)")
 	command.Flags().BoolVar(&yes, "yes", false, "Approve the reviewed plan without an interactive prompt")
-	_ = command.MarkFlagRequired("file")
 	return command
 }
