@@ -577,7 +577,7 @@ func (b *savedBrowser) view(width, height int) string {
 	if b.notice != "" {
 		lines = append(lines, "", b.notice)
 	}
-	if b.err != "" && b.state != "plan" && b.state != "applyConfirm" {
+	if b.err != "" && b.state != "plan" && b.state != "applyConfirm" && !(b.state == "details" && b.current.ManifestError != nil) {
 		lines = append(lines, "", "Error: "+b.err)
 	}
 	bodyHeight := height - len(footer)
