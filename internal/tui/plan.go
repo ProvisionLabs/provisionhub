@@ -10,7 +10,7 @@ import (
 func (w *wizard) planLines(width int) []string {
 	lines := []string{
 		"Project: " + w.plan.ProjectName,
-		"Manifest: " + w.plan.ManifestVersion,
+		"Specification: " + w.plan.SpecificationVersion,
 		"Status: " + string(w.plan.Status),
 		"Execution: " + planExecutionLabel(w.plan.Executable),
 		"", "Selected Technologies:",

@@ -163,11 +163,37 @@ func TestSavedProjectMigrationFromVersionFive(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if _, err := store.ListSavedProjects(ctx); err != nil {
+	var count int
+	if err := store.db.QueryRow("SELECT count(*) FROM saved_projects").Scan(&count); err != nil {
 		t.Fatalf("version five migration: %v", err)
 	}
 	var version int
 	if err := store.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != len(migrations) {
 		t.Fatalf("schema version %d: %v", version, err)
+	}
+}
+
+func TestLegacySavedProjectRowsRemainAfterReopen(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "app.db")
+	store, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.db.Exec("INSERT INTO saved_projects(id,manifest_path,registered_at) VALUES(?,?,?)", "legacy-id", filepath.Join(t.TempDir(), "provisionhub.yaml"), "2026-01-01T00:00:00Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	var id string
+	if err := store.db.QueryRow("SELECT id FROM saved_projects WHERE id=?", "legacy-id").Scan(&id); err != nil || id != "legacy-id" {
+		t.Fatalf("legacy row changed: %q, %v", id, err)
 	}
 }

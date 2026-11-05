@@ -11,7 +11,8 @@ import (
 )
 
 func newPlanCommand() *cobra.Command {
-	var file, output, pluginDirectory string
+	var output, pluginDirectory string
+	var specification specificationFlags
 	var pluginVersions []string
 	command := &cobra.Command{
 		Use: "plan", Short: "Preview generation capabilities without writing or executing anything",
@@ -29,7 +30,11 @@ func newPlanCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			plan, planErr := service.PlanProject(file)
+			spec, err := specification.build(service)
+			if err != nil {
+				return err
+			}
+			plan, planErr := service.PlanSpecification(spec)
 			if output == "json" {
 				encoder := json.NewEncoder(cmd.OutOrStdout())
 				encoder.SetIndent("", "  ")
@@ -42,11 +47,10 @@ func newPlanCommand() *cobra.Command {
 			return planErr
 		},
 	}
-	command.Flags().StringVar(&file, "file", "", "Path to provisionhub.yaml (required)")
+	specification.bind(command)
 	command.Flags().StringVar(&output, "output", "text", "Output format: text or json")
 	command.Flags().StringVar(&pluginDirectory, "plugins", "", "Local plugin directory (optional)")
 	command.Flags().StringArrayVar(&pluginVersions, "plugin-version", nil, "Select installed namespace/name@x.y.z (repeatable)")
-	_ = command.MarkFlagRequired("file")
 	return command
 }
 
@@ -56,7 +60,7 @@ func formatPlan(plan planning.Plan) string {
 	if plan.Executable {
 		execution = "available after explicit approval"
 	}
-	fmt.Fprintf(&out, "ProvisionHub — Generation Plan\n\nProject: %s\nManifest version: %s\nStatus: %s\nExecution: %s\n", plan.ProjectName, plan.ManifestVersion, plan.Status, execution)
+	fmt.Fprintf(&out, "ProvisionHub — Generation Plan\n\nProject: %s\nStatus: %s\nExecution: %s\n", plan.ProjectName, plan.Status, execution)
 	if len(plan.Components) > 0 {
 		fmt.Fprintln(&out, "\nComponents:")
 		for _, component := range plan.Components {

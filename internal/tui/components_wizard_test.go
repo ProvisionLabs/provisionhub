@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/ProvisionLabs/provisionhub/internal/project"
 )
 
 func addNestComponent(t *testing.T, m *Model, name string) {
@@ -103,9 +102,8 @@ func TestMultiComponentWizardAddEditRemovePreviewAndGenerate(t *testing.T) {
 	if m.wizard.step != resultStep || len(m.wizard.applyResult.Created) != 2 {
 		t.Fatalf("generation result: %+v", m.wizard)
 	}
-	manifest, err := project.Load(filepath.Join(destination, project.ManifestName))
-	if err != nil || len(manifest.Spec.Components) != 2 {
-		t.Fatalf("manifest: %+v, %v", manifest, err)
+	if _, err := os.Stat(filepath.Join(destination, "provisionhub.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("unexpected project manifest: %v", err)
 	}
 	for _, name := range []string{"api", "billing"} {
 		if _, err := os.Stat(filepath.Join(destination, name, "package.json")); err != nil {

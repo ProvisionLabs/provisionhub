@@ -5,7 +5,6 @@ type screen uint8
 const (
 	home screen = iota
 	createProject
-	openProject
 	pluginMarketplace
 	settings
 )
@@ -17,7 +16,6 @@ type menuItem struct {
 
 var homeMenu = []menuItem{
 	{label: "Create Project", screen: createProject},
-	{label: "My Projects", screen: openProject},
 	{label: "Plugins", screen: pluginMarketplace},
 	{label: "Settings", screen: settings},
 }

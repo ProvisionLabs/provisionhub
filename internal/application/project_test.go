@@ -10,107 +10,41 @@ import (
 	"github.com/ProvisionLabs/provisionhub/internal/project"
 )
 
-func validInput(destination string) CreateProjectInput {
-	return CreateProjectInput{
-		Name: "my-app", Destination: destination,
-		Backend: "nestjs", Frontend: "nextjs", Database: "postgresql",
-	}
-}
-
-func TestCreateProjectAndLoad(t *testing.T) {
-	service := NewProjectService()
-	input := validInput(filepath.Join(t.TempDir(), "new app"))
-	result, err := service.CreateProject(input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.ManifestPath != filepath.Join(input.Destination, project.ManifestName) {
-		t.Fatalf("manifest path = %q", result.ManifestPath)
-	}
-	loaded, err := service.LoadProject(result.ManifestPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if loaded.Metadata.Name != input.Name || loaded.Spec.Frontend.Technology != input.Frontend || loaded.Spec.Database.Technology != input.Database {
-		t.Fatalf("loaded manifest = %+v", loaded)
-	}
-	if _, err := service.CreateProject(input); err == nil || !strings.Contains(err.Error(), "already exists") {
-		t.Fatalf("second creation error = %v", err)
-	}
-}
-
-func TestOptionalSelections(t *testing.T) {
-	service := NewProjectService()
-	input := validInput(filepath.Join(t.TempDir(), "backend-only"))
-	input.Frontend, input.Database = "none", ""
-	result, err := service.CreateProject(input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Manifest.Spec.Frontend != nil || result.Manifest.Spec.Database != nil {
-		t.Fatalf("optional categories persisted: %+v", result.Manifest.Spec)
-	}
-	data, err := os.ReadFile(result.ManifestPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(data), "frontend:") || strings.Contains(string(data), "database:") {
-		t.Fatalf("optional fields emitted: %s", data)
-	}
-}
-
-func TestProjectValidationErrors(t *testing.T) {
-	service := NewProjectService()
-	base := t.TempDir()
-	for _, test := range []struct {
-		name string
-		edit func(*CreateProjectInput)
-		want string
-	}{
-		{"invalid name", func(i *CreateProjectInput) { i.Name = "Invalid Name" }, "project name"},
-		{"missing destination", func(i *CreateProjectInput) { i.Destination = "" }, "destination path"},
-		{"NUL path", func(i *CreateProjectInput) { i.Destination = "bad\x00path" }, "NUL"},
-		{"missing backend", func(i *CreateProjectInput) { i.Backend = "" }, "backend technology is required"},
-		{"unknown backend", func(i *CreateProjectInput) { i.Backend = "unknown" }, "unknown backend"},
-		{"wrong category", func(i *CreateProjectInput) { i.Database = "nextjs" }, "belongs to frontend"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			input := validInput(filepath.Join(base, test.name))
-			test.edit(&input)
-			if _, err := service.CreateProject(input); err == nil || !strings.Contains(err.Error(), test.want) {
-				t.Fatalf("error = %v, want %q", err, test.want)
-			}
-		})
-	}
-}
-
-func TestFileAncestorFailureAndUnknownLoadedTechnology(t *testing.T) {
+func TestSpecificationValidationDoesNotWrite(t *testing.T) {
 	service := NewProjectService()
 	root := t.TempDir()
+	destination := filepath.Join(root, "new app")
+	components := []project.Component{{Name: "api", Type: "backend", Technology: "nestjs"}, {Name: "billing", Type: "backend", Technology: "nestjs"}}
+	spec, err := service.ValidateComponentsInput("demo", destination, components)
+	if err != nil || len(spec.CanonicalComponents()) != 2 {
+		t.Fatal(spec, err)
+	}
+	if _, err := os.Stat(destination); !os.IsNotExist(err) {
+		t.Fatal("validation wrote destination")
+	}
+	for _, tc := range []struct {
+		name, destination string
+		components        []project.Component
+		want              string
+	}{
+		{"Bad Name", destination, components, "project name"},
+		{"demo", "", components, "destination path"},
+		{"demo", "bad\x00path", components, "NUL"},
+		{"demo", destination, nil, "at least one"},
+		{"demo", destination, []project.Component{{Name: "api", Type: "backend", Technology: "unknown"}}, "unknown backend"},
+		{"demo", destination, []project.Component{{Name: "api", Type: "database", Technology: "nextjs"}}, "belongs to frontend"},
+		{"demo", destination, []project.Component{components[0], components[0]}, "duplicate"},
+	} {
+		if _, err := service.ValidateComponentsInput(tc.name, tc.destination, tc.components); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("%q: %v, want %q", tc.name, err, tc.want)
+		}
+	}
 	file := filepath.Join(root, "file")
-	if err := os.WriteFile(file, nil, 0o600); err != nil {
+	if err := os.WriteFile(file, nil, 0600); err != nil {
 		t.Fatal(err)
 	}
-	input := validInput(filepath.Join(file, "project"))
-	if _, err := service.CreateProject(input); err == nil || !strings.Contains(err.Error(), "contains a file") {
-		t.Fatalf("filesystem error = %v", err)
-	}
-
-	manifest := project.Manifest{
-		APIVersion: project.APIVersion, Kind: project.Kind,
-		Metadata: project.Metadata{Name: "demo"},
-		Spec:     project.Spec{Backend: &project.TechnologySelection{Technology: "unknown"}},
-	}
-	data, err := project.Marshal(manifest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(root, project.ManifestName)
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := service.LoadProject(path); err == nil || !strings.Contains(err.Error(), "unknown backend") {
-		t.Fatalf("load error = %v", err)
+	if _, err := service.ValidateComponentsInput("demo", filepath.Join(file, "project"), components); err == nil {
+		t.Fatal("accepted file ancestor")
 	}
 }
 
@@ -133,8 +67,8 @@ func TestServiceRejectsExplicitCompatibilityConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 	service := ProjectService{catalog: c}
-	input := CreateProjectInput{Name: "demo", Destination: filepath.Join(t.TempDir(), "demo"), Backend: "backend-a", Database: "database-b"}
-	if _, _, err := service.ValidateInput(input); err == nil || !strings.Contains(err.Error(), "incompatible") {
+	components := []project.Component{{Name: "api", Type: "backend", Technology: "backend-a"}, {Name: "data", Type: "database", Technology: "database-b"}}
+	if _, err := service.ValidateComponentsInput("demo", filepath.Join(t.TempDir(), "demo"), components); err == nil || !strings.Contains(err.Error(), "incompatible") {
 		t.Fatalf("compatibility error = %v", err)
 	}
 }

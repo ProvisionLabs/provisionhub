@@ -1,6 +1,6 @@
 # ADR-0006: Declarative local file generation
 
-- Status: Accepted
+- Status: Amended by [ADR-0011](0011-one-time-project-generation.md); the executor remains, its project manifest prerequisite is retired
 - Date: 2026-10-28
 - Owners: ProvisionHub Core Team
 - Extends: [ADR-0005](0005-plugin-composition.md) for the first concrete generator

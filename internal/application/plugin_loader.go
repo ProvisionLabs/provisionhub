@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/ProvisionLabs/provisionhub/internal/plugins"
+	"github.com/ProvisionLabs/provisionhub/internal/project"
 	"github.com/ProvisionLabs/provisionhub/internal/registry"
 )
 
@@ -45,6 +46,9 @@ func (s ProjectService) WithPluginVersions(selections []string) (ProjectService,
 			return s, fmt.Errorf("duplicate version selection for %q", id)
 		}
 		s.pluginVersions[id] = version
+	}
+	if len(selections) > 0 {
+		s.localOnly = false
 	}
 	return s, nil
 }
@@ -88,4 +92,34 @@ func (s ProjectService) loadPlugins() (plugins.Set, error) {
 		}
 	}
 	return plugins.Merge(sets...)
+}
+
+// loadPluginsFor avoids opening the managed installation database when an
+// explicit local directory already supplies every requested generator.
+// Otherwise it retains the existing local-plus-managed discovery behavior.
+func (s ProjectService) loadPluginsFor(spec project.Specification) (plugins.Set, error) {
+	if s.localOnly && len(s.pluginVersions) == 0 {
+		directory, err := pluginDirectory(s.pluginDirectory)
+		if err != nil {
+			return plugins.Set{}, err
+		}
+		local, err := plugins.LoadDirectory(directory, s.catalog)
+		if err != nil {
+			return plugins.Set{}, err
+		}
+		covered := true
+		for _, component := range spec.CanonicalComponents() {
+			if component.Type != "backend" && component.Type != "frontend" {
+				continue
+			}
+			if _, ok := local.ForTechnology(component.Technology); !ok {
+				covered = false
+				break
+			}
+		}
+		if covered {
+			return local, nil
+		}
+	}
+	return s.loadPlugins()
 }

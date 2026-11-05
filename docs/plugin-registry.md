@@ -158,32 +158,18 @@ Esc cancels a running operation; after it finishes, Esc returns. Ctrl+C quits an
 cancels network work. Work executes outside the Bubble Tea event loop; messages
 describe real operations without fabricated percentages. Errors remain visible.
 
-## Discovery and project reproducibility
+## Discovery and version selection
 
-CLI `--plugins` remains highest priority for the unmanaged directory, then
-`PROVISIONHUB_PLUGINS`, then an adjacent portable `plugins` directory. Managed
-packages are discovered separately, offline. Identical definitions deduplicate;
-different versions/implementations for one technology or manifest ID produce an
-explicit conflict. Unhealthy managed packages are excluded and reported by
-`plugin list`; explicitly selecting one returns its diagnostic. Unmanaged paths
-are never modified by install/update/remove.
+CLI `--plugins` supplies an unmanaged directory; `PROVISIONHUB_PLUGINS` and then an adjacent portable `plugins` directory are fallbacks. Explicit local definitions can generate without SQLite when they cover every requested generator; otherwise managed installations are also checked. Managed packages are discovered offline from their SQLite installation metadata and revalidated against their content checksums. Conflicting generators or installed versions produce an explicit error.
 
-Project manifests declare technologies, while optional [project plugin locks](project-plugin-locking.md)
-pin exact release artifacts and loaded content. Unlocked projects still require
-a session selection when multiple installed candidates exist:
+The in-memory project specification declares technologies. Select an exact installed version when several candidates exist:
 
 ```sh
-provisionhub project plan --file ./demo/provisionhub.yaml --plugin-version official/nestjs@1.1.0
-provisionhub project apply --file ./demo/provisionhub.yaml --plugin-version official/nestjs@1.1.0 --yes
+provisionhub project plan --name demo --path ./demo --component api:backend:nestjs --plugin-version official/nestjs@1.1.0
+provisionhub project apply --name demo --path ./demo --component api:backend:nestjs --plugin-version official/nestjs@1.1.0 --yes
 ```
 
-Repeat the flag for additional plugins. The TUI's Installed → `s` selects a
-version for that session. Use `project lock --file ./demo/provisionhub.yaml` to
-persist the exact resolution, `--check` to validate, `--update` to change it,
-or `--restore` to fetch missing exact official releases. Removing an old version
-can make a locked project unavailable until restored. Local plugins require the
-same content to be supplied separately on another machine.
-
+Repeat the flag for additional managed plugins. The TUI's Installed `s` action selects a version for that session. Project-level lockfiles are retired; selected installed versions are rechecked before generation. Local plugins must be supplied separately on another machine.
 ## Validation
 
 Run the normal Go formatting, vet, test and build commands. Mock TLS servers and

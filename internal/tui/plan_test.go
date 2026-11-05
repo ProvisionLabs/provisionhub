@@ -42,7 +42,7 @@ func TestWizardPlanPreviewPreservesSelectionsAndSaveBehavior(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	shared, err := m.service.PlanManifest(manifest)
+	shared, err := m.service.PlanSpecification(manifest)
 	if err != nil || !reflect.DeepEqual(shared, m.wizard.plan) {
 		t.Fatalf("preview bypasses shared planning: %v", err)
 	}
@@ -64,13 +64,9 @@ func TestWizardPlanPreviewPreservesSelectionsAndSaveBehavior(t *testing.T) {
 		t.Fatal("back to configuration lost selections")
 	}
 	press(m, tea.KeyEnter, "")
-	cmd := press(m, tea.KeyEnter, "") // Unsupported selection saves only the manifest.
-	if cmd == nil || !m.wizard.saving {
-		t.Fatal("Review Enter no longer saves the manifest")
-	}
-	m.Update(cmd())
-	if m.wizard.step != resultStep {
-		t.Fatalf("save after preview failed: %s", m.wizard.err)
+	cmd := press(m, tea.KeyEnter, "")
+	if cmd != nil || m.wizard.step != reviewStep || !strings.Contains(m.wizard.err, "unavailable") {
+		t.Fatalf("unsupported plan started generation: %s", m.wizard.err)
 	}
 }
 

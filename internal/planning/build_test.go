@@ -44,17 +44,9 @@ func TestBuildResolvesOptionalCapabilities(t *testing.T) {
 				t.Fatalf("missing stable operation ID %q in %+v", id, plan.Operations)
 			}
 		}
-		encoded, err := project.Marshal(manifest)
-		if err != nil {
-			t.Fatal(err)
-		}
-		equivalent, err := project.Unmarshal(encoded)
-		if err != nil {
-			t.Fatal(err)
-		}
 		for range 25 {
-			if again := Build(equivalent, catalog.Builtin()); !reflect.DeepEqual(plan, again) {
-				t.Fatalf("equivalent manifest produced a different plan: %+v", again)
+			if again := Build(manifest, catalog.Builtin()); !reflect.DeepEqual(plan, again) {
+				t.Fatalf("equivalent specification produced a different plan: %+v", again)
 			}
 		}
 	}

@@ -2,65 +2,41 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/ProvisionLabs/provisionhub/internal/application"
+	"github.com/ProvisionLabs/provisionhub/internal/project"
 	"github.com/spf13/cobra"
 )
 
-func newProjectCommand(savedProjects func() (application.SavedProjects, error)) *cobra.Command {
-	projectCommand := &cobra.Command{
-		Use:   "project",
-		Short: "Manage local project configurations",
+func newProjectCommand() *cobra.Command {
+	command := &cobra.Command{Use: "project", Short: "Plan and generate local source files"}
+	command.AddCommand(newPlanCommand(), newApplyCommand())
+	return command
+}
+
+type specificationFlags struct {
+	name, destination string
+	components        []string
+}
+
+func (f *specificationFlags) bind(command *cobra.Command) {
+	command.Flags().StringVar(&f.name, "name", "", "Project name")
+	command.Flags().StringVar(&f.destination, "path", "", "Output directory")
+	command.Flags().StringArrayVar(&f.components, "component", nil, "Named component name:type:technology (repeatable)")
+	_ = command.MarkFlagRequired("name")
+	_ = command.MarkFlagRequired("path")
+	_ = command.MarkFlagRequired("component")
+}
+
+func (f specificationFlags) build(service application.ProjectService) (project.Specification, error) {
+	components := make([]project.Component, 0, len(f.components))
+	for _, value := range f.components {
+		parts := strings.Split(value, ":")
+		if len(parts) != 3 {
+			return project.Specification{}, fmt.Errorf("invalid component %q; expected name:type:technology", value)
+		}
+		components = append(components, project.Component{Name: parts[0], Type: parts[1], Technology: parts[2]})
 	}
-	var input application.CreateProjectInput
-	var source string
-	initCommand := &cobra.Command{
-		Use:   "init",
-		Short: "Create a provisionhub.yaml without generating source code",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			if !cmd.Flags().Changed("path") {
-				return fmt.Errorf("required flag(s) \"path\" not set")
-			}
-			service := application.NewProjectService()
-			var result application.CreateProjectResult
-			var err error
-			if cmd.Flags().Changed("from") {
-				if source == "" {
-					return fmt.Errorf("--from requires a manifest path")
-				}
-				for _, flag := range []string{"name", "backend", "frontend", "database"} {
-					if cmd.Flags().Changed(flag) {
-						return fmt.Errorf("--from cannot be combined with --%s", flag)
-					}
-				}
-				result, err = service.CreateProjectFromManifest(source, input.Destination)
-			} else {
-				if !cmd.Flags().Changed("name") || !cmd.Flags().Changed("backend") {
-					return fmt.Errorf("required flag(s) \"name\", \"backend\" not set (or use --from)")
-				}
-				result, err = service.CreateProject(input)
-			}
-			if err != nil {
-				return err
-			}
-			saved, err := savedProjects()
-			if err != nil {
-				return fmt.Errorf("manifest created at %s; registration failed: %w", result.ManifestPath, err)
-			}
-			if _, err := saved.Register(cmd.Context(), result.ManifestPath); err != nil {
-				return fmt.Errorf("manifest created at %s; registration failed: %w", result.ManifestPath, err)
-			}
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), result.ManifestPath)
-			return err
-		},
-	}
-	initCommand.Flags().StringVar(&input.Name, "name", "", "Project name (lowercase letters, digits, hyphens)")
-	initCommand.Flags().StringVar(&input.Destination, "path", "", "Destination directory")
-	initCommand.Flags().StringVar(&input.Backend, "backend", "", "Backend technology ID")
-	initCommand.Flags().StringVar(&input.Frontend, "frontend", "", "Frontend technology ID or none (optional)")
-	initCommand.Flags().StringVar(&input.Database, "database", "", "Database technology ID or none (optional)")
-	initCommand.Flags().StringVar(&source, "from", "", "Existing project manifest for a multi-component configuration")
-	projectCommand.AddCommand(initCommand, newPlanCommand(), newApplyCommand(), newLockCommand(), newProjectListCommand(savedProjects), newProjectRegisterCommand(savedProjects), newProjectRelocateCommand(savedProjects), newProjectForgetCommand(savedProjects))
-	return projectCommand
+	return service.ValidateComponentsInput(f.name, f.destination, components)
 }

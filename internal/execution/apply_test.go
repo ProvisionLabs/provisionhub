@@ -27,9 +27,6 @@ func TestFourNamedComponentsReusePluginsAndGenerateIndependently(t *testing.T) {
 	}
 	manifest := project.Manifest{APIVersion: project.APIVersion, Kind: project.Kind,
 		Metadata: project.Metadata{Name: "multi-service-demo"}, Spec: project.Spec{Components: components}}
-	if _, err := project.Save(destination, manifest); err != nil {
-		t.Fatal(err)
-	}
 	pluginDir := filepath.Join(base, "plugins")
 	for _, spec := range []struct{ folder, id, technology, category, capability string }{
 		{"nestjs", "official-nestjs", "nestjs", "backend", "generate_backend"},
@@ -95,9 +92,6 @@ func fixture(t *testing.T) (string, string, project.Manifest, plugins.Set, plann
 		t.Fatal(err)
 	}
 	m := project.Manifest{APIVersion: project.APIVersion, Kind: project.Kind, Metadata: project.Metadata{Name: "my-app"}, Spec: project.Spec{Backend: &project.TechnologySelection{Technology: "nestjs"}}}
-	if _, err := project.Save(destination, m); err != nil {
-		t.Fatal(err)
-	}
 	pluginDir := filepath.Join(base, "plugins")
 	if err := os.MkdirAll(filepath.Join(pluginDir, "nestjs", "templates", "src"), 0o755); err != nil {
 		t.Fatal(err)
@@ -246,7 +240,7 @@ func TestNamedComponentRejectsSymlinkedOutputDirectory(t *testing.T) {
 		Metadata: project.Metadata{Name: "named"}, Spec: project.Spec{Components: []project.Component{
 			{Name: "api", Type: "backend", Technology: "nestjs"},
 		}}}
-	if _, err := project.Save(destination, manifest); err != nil {
+	if err := os.MkdirAll(destination, 0755); err != nil {
 		t.Fatal(err)
 	}
 	plan := planning.BuildWithPlugins(manifest, catalog.Builtin(), set)

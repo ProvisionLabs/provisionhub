@@ -1,5 +1,7 @@
 # Project plugin locking
 
+> Historical guide: Project-level lockfiles were retired by [ADR-0011](adr/0011-one-time-project-generation.md). Managed plugin version selection and artifact integrity checks remain. Existing lockfiles on disk are not removed.
+
 Create a project manifest as usual. Install its generators, then create a lock explicitly:
 
 ```sh

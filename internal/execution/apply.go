@@ -31,7 +31,7 @@ type output struct {
 
 // Preflight performs read-only destination and freshness checks. Apply repeats
 // them because the filesystem can change between review and publication.
-func Preflight(reviewed planning.Plan, manifest project.Manifest, loaded plugins.Set, destination string) error {
+func Preflight(reviewed planning.Plan, manifest project.Specification, loaded plugins.Set, destination string) error {
 	fresh := planning.BuildWithPlugins(manifest, catalog.Builtin(), loaded)
 	if !fresh.Executable || !reflect.DeepEqual(reviewed, fresh) {
 		return errors.New("generation plan changed or is unavailable; review a new plan before applying")
@@ -41,21 +41,24 @@ func Preflight(reviewed planning.Plan, manifest project.Manifest, loaded plugins
 	}
 	resolved, err := checkDestination(destination)
 	if err != nil {
-		return err
+		if !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		if _, validationErr := project.ValidateDestination(destination); validationErr != nil {
+			return validationErr
+		}
+		return validateFileOperations(fresh)
 	}
 	root, err := os.OpenRoot(resolved)
 	if err != nil {
 		return fmt.Errorf("open project destination: %w", err)
 	}
 	defer root.Close()
-	info, err := root.Lstat(project.ManifestName)
-	if err != nil || !info.Mode().IsRegular() {
-		return errors.New("destination must contain a regular provisionhub.yaml")
+	if err := validateFileOperations(fresh); err != nil {
+		return err
 	}
-	fileCount := 0
 	for _, op := range fresh.Operations {
 		if op.Type == planning.GenerateFile {
-			fileCount++
 			if len(op.TargetPaths) != 1 {
 				return fmt.Errorf("invalid file operation %q", op.ID)
 			}
@@ -64,7 +67,21 @@ func Preflight(reviewed planning.Plan, manifest project.Manifest, loaded plugins
 			}
 		}
 	}
-	if fileCount == 0 {
+	return nil
+}
+
+func validateFileOperations(plan planning.Plan) error {
+	count := 0
+	for _, op := range plan.Operations {
+		if op.Type != planning.GenerateFile {
+			continue
+		}
+		count++
+		if len(op.TargetPaths) != 1 {
+			return fmt.Errorf("invalid file operation %q", op.ID)
+		}
+	}
+	if count == 0 {
 		return errors.New("plan has no concrete file operations")
 	}
 	return nil
@@ -72,7 +89,7 @@ func Preflight(reviewed planning.Plan, manifest project.Manifest, loaded plugins
 
 // Apply rechecks the plan against the current manifest and plugin snapshot.
 // It stages every rendered file, then publishes through no-overwrite hard links.
-func Apply(reviewed planning.Plan, manifest project.Manifest, loaded plugins.Set, destination string) (Result, error) {
+func Apply(reviewed planning.Plan, manifest project.Specification, loaded plugins.Set, destination string) (Result, error) {
 	if err := Preflight(reviewed, manifest, loaded, destination); err != nil {
 		return Result{}, err
 	}
@@ -83,6 +100,9 @@ func Apply(reviewed planning.Plan, manifest project.Manifest, loaded plugins.Set
 	if destination == "" {
 		return Result{}, errors.New("destination is required")
 	}
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		return Result{}, fmt.Errorf("create destination: %w", err)
+	}
 	resolved, err := checkDestination(destination)
 	if err != nil {
 		return Result{}, err
@@ -92,10 +112,6 @@ func Apply(reviewed planning.Plan, manifest project.Manifest, loaded plugins.Set
 		return Result{}, fmt.Errorf("open project destination: %w", err)
 	}
 	defer root.Close()
-	info, err := root.Lstat(project.ManifestName)
-	if err != nil || !info.Mode().IsRegular() {
-		return Result{}, errors.New("destination must contain a regular provisionhub.yaml")
-	}
 
 	outputs := make([]output, 0)
 	for _, op := range fresh.Operations {
@@ -200,7 +216,7 @@ func Apply(reviewed planning.Plan, manifest project.Manifest, loaded plugins.Set
 	return Result{Destination: destination, Created: created}, nil
 }
 
-func componentForOperation(manifest project.Manifest, operation planning.Operation) (project.Component, error) {
+func componentForOperation(manifest project.Specification, operation planning.Operation) (project.Component, error) {
 	for _, component := range manifest.CanonicalComponents() {
 		if component.Technology != operation.Technology {
 			continue

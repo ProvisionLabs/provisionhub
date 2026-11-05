@@ -189,7 +189,7 @@ func parse(data []byte) (Manifest, error) {
 		if file.Type != "template" && file.Type != "copy" {
 			return m, fmt.Errorf("unsupported file type %q", file.Type)
 		}
-		if strings.EqualFold(file.Destination, project.ManifestName) {
+		if strings.EqualFold(file.Destination, "provisionhub.yaml") {
 			return m, fmt.Errorf("destination %q is reserved for the project manifest", file.Destination)
 		}
 		if strings.EqualFold(file.Destination, ".provisionhub") || strings.HasPrefix(strings.ToLower(file.Destination), ".provisionhub/") {

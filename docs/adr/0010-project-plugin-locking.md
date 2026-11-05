@@ -1,6 +1,6 @@
 # ADR-0010: Project plugin locks
 
-- Status: Accepted
+- Status: Superseded by [ADR-0011](0011-one-time-project-generation.md)
 - Date: 2026-11-04
 - Owners: ProvisionHub Core Team
 

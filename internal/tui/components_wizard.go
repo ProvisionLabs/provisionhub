@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -44,7 +42,7 @@ func (w *wizard) beginComponentEdit(index int, service application.ProjectServic
 	w.step = componentCategoryStep
 }
 
-func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.ProjectService, saved application.SavedProjects, savedErr error) (tea.Cmd, bool) {
+func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.ProjectService) (tea.Cmd, bool) {
 	key := msg.String()
 	switch w.step {
 	case componentListStep:
@@ -77,7 +75,7 @@ func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.Proje
 				w.err = err.Error()
 				return nil, false
 			}
-			w.plan, err = service.PlanManifest(manifest)
+			w.plan, err = service.PlanSpecification(manifest)
 			if err != nil {
 				w.err = err.Error()
 				return nil, false
@@ -155,6 +153,10 @@ func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.Proje
 			w.preview = true
 			w.planOffset = 0
 		case "enter":
+			if !w.plan.Executable {
+				w.err = "generation is unavailable; install generators for all selected technologies"
+				return nil, false
+			}
 			components := append([]project.Component{}, w.components...)
 			name, destination := w.name.Value(), w.destination.Value()
 			manifest, err := service.ValidateComponentsInput(name, destination, components)
@@ -162,36 +164,21 @@ func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.Proje
 				w.err = err.Error()
 				return nil, false
 			}
-			fresh, err := service.PlanManifest(manifest)
+			fresh, err := service.PlanSpecification(manifest)
 			if err != nil || !sameReviewedPlan(w.plan, fresh) {
 				w.err = "generation plan changed; review a new plan"
 				return nil, false
 			}
-			if w.plan.Executable {
-				w.applying = true
-				plan := w.plan
-				return func() tea.Msg {
-					created, applied, err := service.CreateAndApplyComponentProject(name, destination, components, plan)
-					err = errors.Join(err, registerCreatedProject(saved, savedErr, created.ManifestPath))
-					return projectCreatedMsg{result: created, applied: applied, err: err}
-				}, false
-			}
-			w.saving = true
+			w.applying = true
+			plan := w.plan
 			return func() tea.Msg {
-				result, err := service.CreateComponentProject(name, destination, components)
-				err = errors.Join(err, registerCreatedProject(saved, savedErr, result.ManifestPath))
-				return projectCreatedMsg{result: result, err: err}
+				applied, err := service.ApplySpecification(manifest, destination, plan)
+				return projectCreatedMsg{spec: manifest, destination: destination, applied: applied, err: err}
 			}, false
 		}
 	case resultStep:
-		if key == "l" {
-			file := w.result.ManifestPath
-			return func() tea.Msg {
-				lock, err := service.LockProject(file, false, false)
-				return projectLockMsg{lock: lock, err: err}
-			}, false
-		} else if key == "p" {
-			plan, err := service.PlanProject(w.result.ManifestPath)
+		if key == "p" {
+			plan, err := service.PlanSpecification(w.resultSpec)
 			if err != nil {
 				w.err = err.Error()
 				return nil, false
@@ -202,19 +189,6 @@ func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.Proje
 		}
 	}
 	return nil, false
-}
-
-func registerCreatedProject(saved application.SavedProjects, savedErr error, path string) error {
-	if path == "" {
-		return nil
-	}
-	if savedErr != nil {
-		return fmt.Errorf("manifest created at %s; registration failed: %w", path, savedErr)
-	}
-	if _, err := saved.Register(context.Background(), path); err != nil {
-		return fmt.Errorf("manifest created at %s; registration failed: %w", path, err)
-	}
-	return nil
 }
 
 func (w *wizard) componentLines(service application.ProjectService, contentWidth int) []string {
@@ -261,21 +235,14 @@ func (w *wizard) componentLines(service application.ProjectService, contentWidth
 		if w.step == reviewStep {
 			lines = append(lines, "", "[ "+w.reviewAction()+" ]", "p preview plan · enter approve · esc edit")
 		} else {
-			status := "Manifest created successfully"
+			status := "Project generated successfully"
 			if len(w.applyResult.Created) > 0 {
 				status = "Project generated successfully"
 			} else if w.err != "" {
-				status = "Manifest saved; generation incomplete"
+				status = "Generation incomplete"
 			}
-			lockStatus := "Unlocked"
-			if w.lock.LockVersion == 1 {
-				lockStatus = fmt.Sprintf("Locked (%d plugins)", len(w.lock.Plugins))
-			}
-			lines = append(lines, "", status, "Manifest: "+fitTail(w.result.ManifestPath, contentWidth-10), "Plugins: "+lockStatus)
-			for _, plugin := range w.lock.Plugins {
-				lines = append(lines, "  "+plugin.ID+"@"+plugin.Version)
-			}
-			lines = append(lines, "l create lock · p plan · enter/esc home")
+			lines = append(lines, "", status, "Output: "+fitTail(w.resultDestination, contentWidth-8))
+			lines = append(lines, "p plan · enter/esc home")
 		}
 	}
 	if w.err != "" {

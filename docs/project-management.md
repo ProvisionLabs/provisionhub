@@ -1,5 +1,7 @@
 # Saved project management
 
+> Historical guide: Saved Project Management was retired by [ADR-0011](adr/0011-one-time-project-generation.md). Current ProvisionHub does not register or reopen generated projects. Existing SQLite rows and project files are preserved. This guide awaits archival in a documentation cleanup milestone.
+
 A saved project is a local SQLite reference to an existing `provisionhub.yaml`. The manifest remains the source of truth for the project name, components, technologies, and connections. `.provisionhub/plugins.lock.yaml` remains the source of truth for exact plugin versions and artifact checksums. The database stores only an ID, canonical manifest path, registration time, and last opened time. You can copy or use the project without its database registration.
 
 ## Register and reopen

@@ -1,66 +1,64 @@
 package project
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"slices"
 	"strings"
-
-	"go.yaml.in/yaml/v3"
 )
 
 const (
-	APIVersion   = "provisionhub.dev/v1alpha1"
-	Kind         = "Project"
-	ManifestName = "provisionhub.yaml"
+	APIVersion = "provisionhub.dev/v1alpha1"
+	Kind       = "Project"
 )
 
-// Manifest describes a desired project configuration, not provisioned state.
+// Manifest is the existing in-memory project model. It is never written as
+// project metadata during generation.
 type Manifest struct {
-	APIVersion string   `yaml:"apiVersion"`
-	Kind       string   `yaml:"kind"`
-	Metadata   Metadata `yaml:"metadata"`
-	Spec       Spec     `yaml:"spec"`
+	APIVersion string
+	Kind       string
+	Metadata   Metadata
+	Spec       Spec
 }
 
+// Specification names the in-memory input used by planning and execution.
+type Specification = Manifest
+
 type Metadata struct {
-	Name string `yaml:"name"`
+	Name string
 }
 
 type TechnologySelection struct {
-	Technology string `yaml:"technology"`
+	Technology string
 }
 
 type Spec struct {
-	Backend         *TechnologySelection `yaml:"backend,omitempty"`
-	Frontend        *TechnologySelection `yaml:"frontend,omitempty"`
-	Database        *TechnologySelection `yaml:"database,omitempty"`
-	Components      []Component          `yaml:"components,omitempty"`
-	Connections     []Connection         `yaml:"connections,omitempty"`
-	componentSyntax bool
+	Backend     *TechnologySelection
+	Frontend    *TechnologySelection
+	Database    *TechnologySelection
+	Components  []Component
+	Connections []Connection
 }
 
 // Component is one named instance of a catalog technology. Legacy is internal
 // normalization metadata and is never serialized in a project manifest.
 type Component struct {
-	Name       string `yaml:"name"`
-	Type       string `yaml:"type"`
-	Technology string `yaml:"technology"`
-	Legacy     bool   `yaml:"-"`
+	Name       string
+	Type       string
+	Technology string
+	Legacy     bool
 }
 
 func (c Component) ID() string { return "component/" + c.Name }
 
 type Connection struct {
-	From string `yaml:"from" json:"from"`
-	To   string `yaml:"to" json:"to"`
-	Type string `yaml:"type" json:"type"`
+	From string `json:"from"`
+	To   string `json:"to"`
+	Type string `json:"type"`
 }
 
 func (s Spec) usesComponents() bool {
-	return s.componentSyntax || s.Components != nil || s.Connections != nil
+	return s.Components != nil || s.Connections != nil
 }
 
 func (m Manifest) UsesComponents() bool { return m.Spec.usesComponents() }
@@ -177,58 +175,4 @@ func (m Manifest) Validate() error {
 		return errors.New("spec.database.technology must be omitted or nonempty")
 	}
 	return nil
-}
-
-// Marshal returns a consistently ordered YAML representation.
-func Marshal(m Manifest) ([]byte, error) {
-	if err := m.Validate(); err != nil {
-		return nil, err
-	}
-	if m.Spec.usesComponents() {
-		m.Spec.Components = m.CanonicalComponents()
-		m.Spec.Connections = m.CanonicalConnections()
-	}
-	return yaml.Marshal(m)
-}
-
-// Unmarshal reads exactly one YAML document and rejects unknown fields.
-func Unmarshal(data []byte) (Manifest, error) {
-	var m Manifest
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&m); err != nil {
-		if errors.Is(err, io.EOF) {
-			return Manifest{}, errors.New("manifest is empty")
-		}
-		return Manifest{}, fmt.Errorf("decode manifest: %w", err)
-	}
-	var extra any
-	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
-		if err != nil {
-			return Manifest{}, fmt.Errorf("decode manifest: %w", err)
-		}
-		return Manifest{}, errors.New("manifest must contain exactly one YAML document")
-	}
-	var syntax yaml.Node
-	if err := yaml.Unmarshal(data, &syntax); err != nil {
-		return Manifest{}, fmt.Errorf("decode manifest: %w", err)
-	}
-	if len(syntax.Content) > 0 {
-		root := syntax.Content[0]
-		for i := 0; i+1 < len(root.Content); i += 2 {
-			if root.Content[i].Value != "spec" {
-				continue
-			}
-			spec := root.Content[i+1]
-			for j := 0; j+1 < len(spec.Content); j += 2 {
-				if spec.Content[j].Value == "components" || spec.Content[j].Value == "connections" {
-					m.Spec.componentSyntax = true
-				}
-			}
-		}
-	}
-	if err := m.Validate(); err != nil {
-		return Manifest{}, err
-	}
-	return m, nil
 }
