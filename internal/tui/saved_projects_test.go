@@ -216,3 +216,14 @@ files:
 		t.Fatalf("confirmed update did not change lock: %v", err)
 	}
 }
+
+func TestSavedApplyCannotQuitDuringPublication(t *testing.T) {
+	m := newTestModel()
+	m.nav.current = openProject
+	m.savedBrowser.state = "applyConfirm"
+	m.savedBrowser.busy = true
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	if cmd != nil || m.nav.current != openProject {
+		t.Fatal("quit interrupted saved project apply")
+	}
+}
