@@ -26,9 +26,10 @@ const (
 )
 
 type projectCreatedMsg struct {
-	result  application.CreateProjectResult
-	applied execution.Result
-	err     error
+	spec        project.Manifest
+	destination string
+	applied     execution.Result
+	err         error
 }
 
 type projectAppliedMsg struct {
@@ -44,7 +45,8 @@ type wizard struct {
 	focused             int
 	err                 string
 	saving              bool
-	result              application.CreateProjectResult
+	resultSpec          project.Manifest
+	resultDestination   string
 	preview             bool
 	confirm             bool
 	applying            bool
@@ -117,7 +119,7 @@ func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService)
 			case "y":
 				w.confirm = false
 				w.applying = true
-				spec, destination, plan := w.result.Manifest, w.result.ManifestPath, w.plan
+				spec, destination, plan := w.resultSpec, w.resultDestination, w.plan
 				return func() tea.Msg {
 					result, err := service.ApplySpecification(spec, destination, plan)
 					return projectAppliedMsg{result: result, err: err}
@@ -130,7 +132,7 @@ func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService)
 			w.preview = false
 		case "g":
 			if w.step == resultStep && w.plan.Executable && w.applyResult.Created == nil {
-				if err := service.PreflightSpecification(w.result.Manifest, w.result.ManifestPath, w.plan); err != nil {
+				if err := service.PreflightSpecification(w.resultSpec, w.resultDestination, w.plan); err != nil {
 					w.err = err.Error()
 				} else {
 					w.confirm = true
@@ -194,13 +196,14 @@ func (w *wizard) applied(msg projectAppliedMsg) {
 func (w *wizard) created(msg projectCreatedMsg) {
 	w.saving = false
 	w.applying = false
-	if msg.result.ManifestPath == "" {
+	if msg.destination == "" {
 		if msg.err != nil {
 			w.err = msg.err.Error()
 		}
 		return
 	}
-	w.result = msg.result
+	w.resultSpec = msg.spec
+	w.resultDestination = msg.destination
 	w.applyResult = msg.applied
 	w.step = resultStep
 	if msg.err != nil {

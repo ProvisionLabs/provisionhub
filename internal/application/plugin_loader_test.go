@@ -29,11 +29,11 @@ func TestInstalledPluginGenerationAfterRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := service.PlanManifest(manifest)
+	plan, err := service.PlanSpecification(manifest)
 	if err != nil || !plan.Executable {
 		t.Fatal(plan, err)
 	}
-	_, result, err := service.CreateAndApplyComponentProject("demo", destination, components, plan)
+	result, err := service.ApplySpecification(manifest, destination, plan)
 	if err != nil || len(result.Created) != 2 {
 		t.Fatal(result, err)
 	}
@@ -44,7 +44,7 @@ func TestInstalledPluginGenerationAfterRestart(t *testing.T) {
 	if err := manager.Remove(context.Background(), item.PluginID, item.Version); err != nil {
 		t.Fatal(err)
 	}
-	plan, err = NewProjectService().PlanManifest(manifest)
+	plan, err = NewProjectService().PlanSpecification(manifest)
 	if err != nil || plan.Executable {
 		t.Fatal("removed generator discovered", plan, err)
 	}

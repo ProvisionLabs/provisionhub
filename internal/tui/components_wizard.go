@@ -75,7 +75,7 @@ func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.Proje
 				w.err = err.Error()
 				return nil, false
 			}
-			w.plan, err = service.PlanManifest(manifest)
+			w.plan, err = service.PlanSpecification(manifest)
 			if err != nil {
 				w.err = err.Error()
 				return nil, false
@@ -164,7 +164,7 @@ func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.Proje
 				w.err = err.Error()
 				return nil, false
 			}
-			fresh, err := service.PlanManifest(manifest)
+			fresh, err := service.PlanSpecification(manifest)
 			if err != nil || !sameReviewedPlan(w.plan, fresh) {
 				w.err = "generation plan changed; review a new plan"
 				return nil, false
@@ -173,12 +173,12 @@ func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.Proje
 			plan := w.plan
 			return func() tea.Msg {
 				applied, err := service.ApplySpecification(manifest, destination, plan)
-				return projectCreatedMsg{result: application.CreateProjectResult{Manifest: manifest, ManifestPath: destination}, applied: applied, err: err}
+				return projectCreatedMsg{spec: manifest, destination: destination, applied: applied, err: err}
 			}, false
 		}
 	case resultStep:
 		if key == "p" {
-			plan, err := service.PlanSpecification(w.result.Manifest)
+			plan, err := service.PlanSpecification(w.resultSpec)
 			if err != nil {
 				w.err = err.Error()
 				return nil, false
@@ -241,7 +241,7 @@ func (w *wizard) componentLines(service application.ProjectService, contentWidth
 			} else if w.err != "" {
 				status = "Generation incomplete"
 			}
-			lines = append(lines, "", status, "Output: "+fitTail(w.result.ManifestPath, contentWidth-8))
+			lines = append(lines, "", status, "Output: "+fitTail(w.resultDestination, contentWidth-8))
 			lines = append(lines, "p plan · enter/esc home")
 		}
 	}

@@ -42,7 +42,7 @@ func TestWizardPlanPreviewPreservesSelectionsAndSaveBehavior(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	shared, err := m.service.PlanManifest(manifest)
+	shared, err := m.service.PlanSpecification(manifest)
 	if err != nil || !reflect.DeepEqual(shared, m.wizard.plan) {
 		t.Fatalf("preview bypasses shared planning: %v", err)
 	}

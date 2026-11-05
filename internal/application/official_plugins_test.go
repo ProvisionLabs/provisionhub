@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"encoding/json"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -10,11 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/ProvisionLabs/provisionhub/internal/plugins"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
-	"github.com/ProvisionLabs/provisionhub/internal/projectlock"
 	"github.com/ProvisionLabs/provisionhub/internal/registry"
 )
 
@@ -59,13 +56,6 @@ func TestOfficialPackageLifecycle(t *testing.T) {
 			t.Fatal(item, err)
 		}
 	}
-	cache, err := json.Marshal(registry.Snapshot{Index: index, FetchedAt: time.Now().UTC(), URL: registry.OfficialURL})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(manager.DataDirectory, "registry-cache.json"), cache, 0600); err != nil {
-		t.Fatal(err)
-	}
 	restarted := NewProjectService()
 	restarted.pluginManager = &manager
 	destination := filepath.Join(t.TempDir(), "multi component café")
@@ -74,17 +64,13 @@ func TestOfficialPackageLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := restarted.PlanManifest(manifest)
+	plan, err := restarted.PlanSpecification(manifest)
 	if err != nil || !plan.Executable {
 		t.Fatal(plan, err)
 	}
-	created, applied, err := restarted.CreateAndApplyComponentProject("demo", destination, components, plan)
+	applied, err := restarted.ApplySpecification(manifest, destination, plan)
 	if err != nil || len(applied.Created) != 40 {
 		t.Fatal(len(applied.Created), err)
-	}
-	lock, err := restarted.LockProject(created.ManifestPath, false, false)
-	if err != nil || len(lock.Plugins) != 2 {
-		t.Fatal(lock, err)
 	}
 	hashes := map[string]string{}
 	for _, name := range applied.Created {
@@ -95,41 +81,25 @@ func TestOfficialPackageLifecycle(t *testing.T) {
 		hashes[name] = plugins.Checksum(data)
 	}
 	secondManager := PluginManager{DataDirectory: t.TempDir(), Source: fixedRegistry{index}, HTTP: server.Client()}
+	for _, plugin := range index.Plugins {
+		if _, err := secondManager.InstallFrom(context.Background(), index, plugin.ID, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
 	second := NewProjectService()
 	second.pluginManager = &secondManager
 	secondDestination := filepath.Join(t.TempDir(), "second project")
-	secondCreated, err := second.CreateComponentProject("demo", secondDestination, components)
+	secondSpec, err := second.ValidateComponentsInput("demo", secondDestination, components)
 	if err != nil {
 		t.Fatal(err)
 	}
-	firstLockPath, err := projectlock.Path(created.ManifestPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	secondLockPath, err := projectlock.Path(secondCreated.ManifestPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	lockBytes, err := os.ReadFile(firstLockPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Dir(secondLockPath), 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(secondLockPath, lockBytes, 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := second.RestoreLockedProject(context.Background(), secondCreated.ManifestPath); err != nil {
-		t.Fatal(err)
-	}
-	secondManager.Source = fixedRegistry{registry.Index{}} // planning must ignore changed registry metadata
-	server.Close()                                         // Generation on both machines must now work offline.
-	secondPlan, err := second.PlanProject(secondCreated.ManifestPath)
+	secondManager.Source = fixedRegistry{registry.Index{}}
+	server.Close() // Generation on both machines must now work offline.
+	secondPlan, err := second.PlanSpecification(secondSpec)
 	if err != nil || !secondPlan.Executable {
 		t.Fatal(secondPlan, err)
 	}
-	secondApplied, err := second.ApplyProject(secondCreated.ManifestPath, secondPlan)
+	secondApplied, err := second.ApplySpecification(secondSpec, secondDestination, secondPlan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,9 +124,6 @@ func TestOfficialPackageLifecycle(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(destination, filepath.FromSlash(name))); err != nil {
 			t.Fatal(err)
 		}
-	}
-	if _, err := NewProjectService().PlanProject(created.ManifestPath); err != nil {
-		t.Fatal("restart project", err)
 	}
 	if err := manager.Remove(context.Background(), "official/nestjs", manifests[0].Version); err != nil {
 		t.Fatal(err)

@@ -44,7 +44,7 @@ func Preflight(reviewed planning.Plan, manifest project.Manifest, loaded plugins
 		if !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
-		if _, _, validationErr := project.CheckDestination(destination); validationErr != nil {
+		if _, validationErr := project.ValidateDestination(destination); validationErr != nil {
 			return validationErr
 		}
 		return validateFileOperations(fresh)
@@ -57,10 +57,8 @@ func Preflight(reviewed planning.Plan, manifest project.Manifest, loaded plugins
 	if err := validateFileOperations(fresh); err != nil {
 		return err
 	}
-	fileCount := 0
 	for _, op := range fresh.Operations {
 		if op.Type == planning.GenerateFile {
-			fileCount++
 			if len(op.TargetPaths) != 1 {
 				return fmt.Errorf("invalid file operation %q", op.ID)
 			}
