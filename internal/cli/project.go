@@ -44,6 +44,13 @@ func newProjectCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			saved, err := application.NewSavedProjects(service)
+			if err != nil {
+				return fmt.Errorf("manifest created at %s; registration failed: %w", result.ManifestPath, err)
+			}
+			if _, err := saved.Register(cmd.Context(), result.ManifestPath); err != nil {
+				return fmt.Errorf("manifest created at %s; registration failed: %w", result.ManifestPath, err)
+			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), result.ManifestPath)
 			return err
 		},
@@ -54,6 +61,6 @@ func newProjectCommand() *cobra.Command {
 	initCommand.Flags().StringVar(&input.Frontend, "frontend", "", "Frontend technology ID or none (optional)")
 	initCommand.Flags().StringVar(&input.Database, "database", "", "Database technology ID or none (optional)")
 	initCommand.Flags().StringVar(&source, "from", "", "Existing project manifest for a multi-component configuration")
-	projectCommand.AddCommand(initCommand, newPlanCommand(), newApplyCommand(), newLockCommand())
+	projectCommand.AddCommand(initCommand, newPlanCommand(), newApplyCommand(), newLockCommand(), newProjectListCommand(), newProjectRegisterCommand(), newProjectForgetCommand())
 	return projectCommand
 }
