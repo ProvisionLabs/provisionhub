@@ -32,6 +32,8 @@ type SavedProjectView struct {
 	LockError     error
 }
 
+var ErrSavedProjectAvailable = errors.New("saved project is available; it cannot be cleaned up")
+
 func NewSavedProjects(projects ProjectService) (SavedProjects, error) {
 	path, err := localdb.DefaultPath()
 	return SavedProjects{DatabasePath: path, Projects: projects}, err
@@ -177,6 +179,58 @@ func (s SavedProjects) Forget(ctx context.Context, id string) error {
 	}
 	defer store.Close()
 	return store.ForgetSavedProject(ctx, id)
+}
+
+// Unavailable previews only references whose manifests currently fail to load.
+// This is read-only and retains repairable/moved references until the user acts.
+func (s SavedProjects) Unavailable(ctx context.Context) ([]SavedProjectView, error) {
+	views, err := s.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	candidates := make([]SavedProjectView, 0)
+	for _, view := range views {
+		if view.ManifestError != nil {
+			candidates = append(candidates, view)
+		}
+	}
+	return candidates, nil
+}
+
+// CleanupUnavailable removes only selected IDs after checking their current
+// manifest state again. It never touches the project filesystem.
+func (s SavedProjects) CleanupUnavailable(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return errors.New("select at least one unavailable project")
+	}
+	views, err := s.List(ctx)
+	if err != nil {
+		return err
+	}
+	byID := make(map[string]SavedProjectView, len(views))
+	for _, view := range views {
+		byID[view.Reference.ID] = view
+	}
+	seen := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		if seen[id] {
+			return fmt.Errorf("duplicate cleanup selection %s", id)
+		}
+		seen[id] = true
+		view, ok := byID[id]
+		if !ok {
+			return fmt.Errorf("%w: %s", localdb.ErrSavedProjectMissing, id)
+		}
+		if view.ManifestError == nil {
+			return fmt.Errorf("%w: %s", ErrSavedProjectAvailable, id)
+		}
+	}
+	store, err := s.open(ctx)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	return store.ForgetSavedProjects(ctx, ids)
 }
 
 func (s SavedProjects) FindByPath(ctx context.Context, path string) (localdb.SavedProject, error) {

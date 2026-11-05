@@ -139,3 +139,32 @@ func (s *Store) ForgetSavedProject(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+// ForgetSavedProjects removes an explicitly selected set in one transaction.
+func (s *Store) ForgetSavedProjects(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return errors.New("select at least one saved project")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin saved project cleanup: %w", err)
+	}
+	defer tx.Rollback()
+	for _, id := range ids {
+		result, err := tx.ExecContext(ctx, "DELETE FROM saved_projects WHERE id=?", id)
+		if err != nil {
+			return fmt.Errorf("forget saved project %s: %w", id, err)
+		}
+		count, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if count != 1 {
+			return fmt.Errorf("%w: %s", ErrSavedProjectMissing, id)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit saved project cleanup: %w", err)
+	}
+	return nil
+}
