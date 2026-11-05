@@ -160,7 +160,7 @@ describe real operations without fabricated percentages. Errors remain visible.
 
 ## Discovery and version selection
 
-CLI `--plugins` supplies an unmanaged directory; `PROVISIONHUB_PLUGINS` and then an adjacent portable `plugins` directory are fallbacks. Explicit local definitions can generate without SQLite. Managed packages are discovered offline from their SQLite installation metadata and revalidated against their content checksums. Conflicting generators or installed versions produce an explicit error.
+CLI `--plugins` supplies an unmanaged directory; `PROVISIONHUB_PLUGINS` and then an adjacent portable `plugins` directory are fallbacks. Explicit local definitions can generate without SQLite when they cover every requested generator; otherwise managed installations are also checked. Managed packages are discovered offline from their SQLite installation metadata and revalidated against their content checksums. Conflicting generators or installed versions produce an explicit error.
 
 The in-memory project specification declares technologies. Select an exact installed version when several candidates exist:
 

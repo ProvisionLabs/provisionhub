@@ -141,3 +141,52 @@ func TestManagedLocalConflictAndExplicitSelection(t *testing.T) {
 		t.Fatal("invalid selection")
 	}
 }
+
+func TestLocalAndManagedGeneratorsComposeWhenLocalIsIncomplete(t *testing.T) {
+	manager, index, _ := managerFixture(t)
+	if _, err := manager.InstallFrom(context.Background(), index, "official/nestjs", ""); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	folder := filepath.Join(root, "nextjs")
+	if err := os.MkdirAll(filepath.Join(folder, "templates"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	definition := `apiVersion: provisionhub.dev/plugin/v1alpha1
+id: official-nextjs
+version: 1.0.0
+technologyId: nextjs
+category: frontend
+name: Next.js
+description: Local frontend
+capability: generate_frontend
+files:
+  - type: template
+    source: templates/package.json.tmpl
+    destination: package.json
+`
+	if err := os.WriteFile(filepath.Join(folder, "plugin.yaml"), []byte(definition), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(folder, "templates", "package.json.tmpl"), []byte(`{"name":"{{componentName}}"}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewProjectServiceWithPlugins(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.pluginManager = &manager
+	destination := filepath.Join(t.TempDir(), "combined")
+	spec, err := service.ValidateComponentsInput("demo", destination, []project.Component{{Name: "api", Type: "backend", Technology: "nestjs"}, {Name: "web", Type: "frontend", Technology: "nextjs"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanSpecification(spec)
+	if err != nil || !plan.Executable {
+		t.Fatal(plan, err)
+	}
+	result, err := service.ApplySpecification(spec, destination, plan)
+	if err != nil || len(result.Created) != 2 {
+		t.Fatal(result, err)
+	}
+}

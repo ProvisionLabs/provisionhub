@@ -12,7 +12,7 @@ import (
 
 // PlanSpecification plans directly from an in-memory project description.
 func (s ProjectService) PlanSpecification(spec project.Specification) (planning.Plan, error) {
-	loaded, err := s.loadPlugins()
+	loaded, err := s.loadPluginsFor(spec)
 	if err != nil {
 		return planning.Plan{Status: planning.StatusInvalid, Technologies: []planning.Technology{}, Operations: []planning.Operation{}, Diagnostics: []planning.Diagnostic{{Severity: planning.SeverityError, Code: planning.InvalidPlugin, Message: err.Error()}}}, err
 	}
@@ -44,7 +44,7 @@ func (s ProjectService) ApplySpecification(spec project.Specification, destinati
 }
 
 func (s ProjectService) freshSpecification(spec project.Specification, reviewed planning.Plan) (plugins.Set, error) {
-	loaded, err := s.loadPlugins()
+	loaded, err := s.loadPluginsFor(spec)
 	if err != nil {
 		return plugins.Set{}, err
 	}

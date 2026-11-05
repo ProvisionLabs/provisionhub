@@ -22,7 +22,7 @@ go test -count=1 ./...
 go build ./cmd/provisionhub
 ```
 
-CI runs these checks on Windows, Linux, and macOS. Tests drive Bubble Tea models directly and use local plugin fixtures and temporary output directories. Application and plugin tests use temporary SQLite databases. CLI/TUI/application package test setup sets `PROVISIONHUB_DATA_DIR` to a disposable directory for default Plugin Manager calls. Explicit `--plugins` or `PROVISIONHUB_PLUGINS` definitions can plan and generate with an unusable SQLite path; managed plugin installation and discovery still use the SQLite metadata store. Tests do not need network access, live GitHub authentication, or the developer's home database.
+CI runs these checks on Windows, Linux, and macOS. Tests drive Bubble Tea models directly and use local plugin fixtures and temporary output directories. Application and plugin tests use temporary SQLite databases. CLI/TUI/application package test setup sets `PROVISIONHUB_DATA_DIR` to a disposable directory for default Plugin Manager calls. Explicit `--plugins` or `PROVISIONHUB_PLUGINS` definitions can plan and generate with an unusable SQLite path when they cover every requested generator; managed plugin installation and discovery still use the SQLite metadata store. Tests do not need network access, live GitHub authentication, or the developer's home database.
 
 To exercise the official NestJS and Next.js definitions from a sibling checkout, set `PROVISIONHUB_OFFICIAL_PLUGINS` to its `plugins` directory and run the official package lifecycle test in `internal/application`. Core CI does not require that checkout. See [generation planning](generation-planning.md), [CLI reference](cli-reference.md), and [plugin registry](plugin-registry.md).
 

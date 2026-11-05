@@ -35,7 +35,7 @@ provisionhub project apply --name commerce --path ./commerce \
 
 `project plan --output json` emits the same plan as structured JSON. `project apply` prints the plan and asks for literal `yes` in a terminal. Automation may pass `--yes` after reviewing the plan. The CLI does not install dependencies, start generated applications, or create Git repositories.
 
-Install managed official generators with `provisionhub plugin install official/nestjs` and `provisionhub plugin install official/nextjs`. `--plugin-version official/nestjs@1.1.0` selects a specific installed version; omit the flag only when selection is unambiguous. An explicit `--plugins` directory, or `PROVISIONHUB_PLUGINS`, loads local definitions without opening SQLite for generation. Managed installations use SQLite metadata for discovery and revalidate their artifacts before use. Plugin manifests and packaging formats have not changed. See the [plugin guide](docs/plugin-registry.md).
+Install managed official generators with `provisionhub plugin install official/nestjs` and `provisionhub plugin install official/nextjs`. `--plugin-version official/nestjs@1.1.0` selects a specific installed version; omit the flag only when selection is unambiguous. An explicit `--plugins` directory, or `PROVISIONHUB_PLUGINS`, can generate without opening SQLite when its definitions cover the requested generators. Managed installations use SQLite metadata for discovery and revalidate their artifacts before use. Plugin manifests and packaging formats have not changed. See the [plugin guide](docs/plugin-registry.md).
 
 ## Persistent application state
 

@@ -13,7 +13,7 @@ ProvisionHub previously saved project manifests, optional plugin locks, and loca
 
 CLI and TUI construct a validated in-memory project specification with named components. The Planning Engine uses that value and locally validated plugin definitions. After explicit review and approval, the Execution Engine reloads plugin content, checks freshness and output safety, and generates source files. Neither workflow writes a project YAML file, project plugin lockfile, or saved-project registration.
 
-Explicitly supplied local plugin definitions can generate without SQLite. Managed plugins still use SQLite installation metadata and content integrity checks. Explicit version selection resolves ambiguity. Plugin manifests and package formats stay unchanged. The versioned SQLite migration that created `saved_projects` remains in the migration history; existing rows are left untouched and no startup migration drops them.
+Explicitly supplied local plugin definitions can generate without SQLite when they cover every requested generator. Managed plugins still use SQLite installation metadata and content integrity checks. Explicit version selection resolves ambiguity. Plugin manifests and package formats stay unchanged. The versioned SQLite migration that created `saved_projects` remains in the migration history; existing rows are left untouched and no startup migration drops them.
 
 ## Rationale
 
