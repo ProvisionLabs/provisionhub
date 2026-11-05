@@ -7,6 +7,7 @@ import (
 )
 
 func TestPlatformApplicationDataPath(t *testing.T) {
+	t.Setenv("PROVISIONHUB_DATA_DIR", "")
 	base := t.TempDir()
 	var expected string
 	switch runtime.GOOS {
