@@ -75,8 +75,11 @@ func TestInMemoryGenerationWithoutProjectMetadataOrDatabase(t *testing.T) {
 			t.Fatalf("unexpected project metadata %s: %v", name, err)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(blocked, "provisionhub.db")); !os.IsNotExist(err) {
-		t.Fatal("generation accessed SQLite")
+	if data, err := os.ReadFile(blocked); err != nil || string(data) != "keep" {
+		t.Fatalf("generation changed the blocked application-data path: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(base, "provisionhub.db")); !os.IsNotExist(err) {
+		t.Fatal("generation created a SQLite database")
 	}
 }
 
