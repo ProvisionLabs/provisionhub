@@ -37,6 +37,28 @@ func TestProjectSavedCommandsAndInitRegistrationFailure(t *testing.T) {
 	if _, err := executeCLI("project", "register", "--file", output); err != nil {
 		t.Fatal(err)
 	}
+	listed, err = executeCLI("project", "list")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := strings.Fields(listed)[0]
+	moved := filepath.Join(base, "moved")
+	if err := os.Rename(output, moved); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := executeCLI("project", "relocate", "--id", id, "--file", moved); err != nil {
+		t.Fatal(err)
+	}
+	listed, err = executeCLI("project", "list")
+	if err != nil || !strings.Contains(strings.ToLower(listed), strings.ToLower(moved)) || !strings.HasPrefix(listed, id) {
+		t.Fatalf("relocated list: %s %v", listed, err)
+	}
+	if _, err := executeCLI("project", "forget", "--id", id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(moved, project.ManifestName)); err != nil {
+		t.Fatal("forget removed moved manifest", err)
+	}
 	blocked := filepath.Join(base, "blocked")
 	if err := os.WriteFile(blocked, []byte("file"), 0600); err != nil {
 		t.Fatal(err)

@@ -10,7 +10,7 @@ Creating a project through `project init` or the TUI registers it after the mani
 
 ## Relocate and forget
 
-If the project moves, select it in **My Projects**, press `m`, and enter the new manifest path or directory. Relocation validates the replacement manifest, rejects a path already registered to another project, and keeps the original local ID. It changes only the SQLite path. A missing old path does not prevent relocation.
+If the project moves, select it in **My Projects**, press `m`, and enter the new manifest path or directory. The CLI equivalent is `provisionhub project relocate --id <saved-id> --file ./moved/provisionhub.yaml`. Relocation validates the replacement manifest, rejects a path already registered to another project, and keeps the original local ID. It changes only the SQLite path. A missing old path does not prevent relocation.
 
 Press `f` and confirm with `y` to **Forget Project**. This removes only the local reference; the project directory, generated files, manifest, lockfile, and Git repositories remain untouched. The CLI equivalent is `provisionhub project forget --file ./demo/provisionhub.yaml`, or `--id <saved-id>` if the old path no longer exists.
 

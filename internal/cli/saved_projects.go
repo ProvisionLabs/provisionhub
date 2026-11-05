@@ -80,3 +80,23 @@ func newProjectForgetCommand() *cobra.Command {
 	command.Flags().StringVar(&id, "id", "", "Saved project ID (useful if the project moved)")
 	return command
 }
+
+func newProjectRelocateCommand() *cobra.Command {
+	var file, id string
+	command := &cobra.Command{Use: "relocate", Short: "Update a saved project's manifest location", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+		saved, err := savedProjects()
+		if err != nil {
+			return err
+		}
+		if err := saved.Relocate(cmd.Context(), id, file); err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "Relocated project %s\n", id)
+		return err
+	}}
+	command.Flags().StringVar(&id, "id", "", "Saved project ID (required)")
+	command.Flags().StringVar(&file, "file", "", "New manifest path or project directory (required)")
+	_ = command.MarkFlagRequired("id")
+	_ = command.MarkFlagRequired("file")
+	return command
+}

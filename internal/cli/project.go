@@ -61,6 +61,6 @@ func newProjectCommand() *cobra.Command {
 	initCommand.Flags().StringVar(&input.Frontend, "frontend", "", "Frontend technology ID or none (optional)")
 	initCommand.Flags().StringVar(&input.Database, "database", "", "Database technology ID or none (optional)")
 	initCommand.Flags().StringVar(&source, "from", "", "Existing project manifest for a multi-component configuration")
-	projectCommand.AddCommand(initCommand, newPlanCommand(), newApplyCommand(), newLockCommand(), newProjectListCommand(), newProjectRegisterCommand(), newProjectForgetCommand())
+	projectCommand.AddCommand(initCommand, newPlanCommand(), newApplyCommand(), newLockCommand(), newProjectListCommand(), newProjectRegisterCommand(), newProjectRelocateCommand(), newProjectForgetCommand())
 	return projectCommand
 }
