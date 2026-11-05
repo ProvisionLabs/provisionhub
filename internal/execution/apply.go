@@ -41,16 +41,21 @@ func Preflight(reviewed planning.Plan, manifest project.Manifest, loaded plugins
 	}
 	resolved, err := checkDestination(destination)
 	if err != nil {
-		return err
+		if !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		if _, _, validationErr := project.CheckDestination(destination); validationErr != nil {
+			return validationErr
+		}
+		return validateFileOperations(fresh)
 	}
 	root, err := os.OpenRoot(resolved)
 	if err != nil {
 		return fmt.Errorf("open project destination: %w", err)
 	}
 	defer root.Close()
-	info, err := root.Lstat(project.ManifestName)
-	if err != nil || !info.Mode().IsRegular() {
-		return errors.New("destination must contain a regular provisionhub.yaml")
+	if err := validateFileOperations(fresh); err != nil {
+		return err
 	}
 	fileCount := 0
 	for _, op := range fresh.Operations {
@@ -64,7 +69,21 @@ func Preflight(reviewed planning.Plan, manifest project.Manifest, loaded plugins
 			}
 		}
 	}
-	if fileCount == 0 {
+	return nil
+}
+
+func validateFileOperations(plan planning.Plan) error {
+	count := 0
+	for _, op := range plan.Operations {
+		if op.Type != planning.GenerateFile {
+			continue
+		}
+		count++
+		if len(op.TargetPaths) != 1 {
+			return fmt.Errorf("invalid file operation %q", op.ID)
+		}
+	}
+	if count == 0 {
 		return errors.New("plan has no concrete file operations")
 	}
 	return nil
@@ -83,6 +102,9 @@ func Apply(reviewed planning.Plan, manifest project.Manifest, loaded plugins.Set
 	if destination == "" {
 		return Result{}, errors.New("destination is required")
 	}
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		return Result{}, fmt.Errorf("create destination: %w", err)
+	}
 	resolved, err := checkDestination(destination)
 	if err != nil {
 		return Result{}, err
@@ -92,10 +114,6 @@ func Apply(reviewed planning.Plan, manifest project.Manifest, loaded plugins.Set
 		return Result{}, fmt.Errorf("open project destination: %w", err)
 	}
 	defer root.Close()
-	info, err := root.Lstat(project.ManifestName)
-	if err != nil || !info.Mode().IsRegular() {
-		return Result{}, errors.New("destination must contain a regular provisionhub.yaml")
-	}
 
 	outputs := make([]output, 0)
 	for _, op := range fresh.Operations {

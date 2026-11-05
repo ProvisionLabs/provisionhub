@@ -46,6 +46,9 @@ func (s ProjectService) WithPluginVersions(selections []string) (ProjectService,
 		}
 		s.pluginVersions[id] = version
 	}
+	if len(selections) > 0 {
+		s.localOnly = false
+	}
 	return s, nil
 }
 func (s ProjectService) loadPlugins() (plugins.Set, error) {
@@ -56,6 +59,9 @@ func (s ProjectService) loadPlugins() (plugins.Set, error) {
 	local, err := plugins.LoadDirectory(directory, s.catalog)
 	if err != nil {
 		return plugins.Set{}, err
+	}
+	if s.localOnly {
+		return local, nil
 	}
 	manager := s.manager()
 	items, err := manager.List(context.Background())

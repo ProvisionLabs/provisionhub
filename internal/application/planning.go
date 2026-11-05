@@ -58,6 +58,41 @@ func (s ProjectService) PlanManifest(manifest project.Manifest) (planning.Plan, 
 	return plan, nil
 }
 
+// PlanSpecification plans directly from an in-memory project description.
+func (s ProjectService) PlanSpecification(spec project.Manifest) (planning.Plan, error) {
+	return s.PlanManifest(spec)
+}
+
+// PreflightSpecification checks the reviewed plan and output without writing.
+func (s ProjectService) PreflightSpecification(spec project.Manifest, destination string, reviewed planning.Plan) error {
+	loaded, err := s.freshSpecification(spec, reviewed)
+	if err != nil {
+		return err
+	}
+	return execution.Preflight(reviewed, spec, loaded, destination)
+}
+
+// ApplySpecification reloads plugin content and repeats the reviewed plan check.
+func (s ProjectService) ApplySpecification(spec project.Manifest, destination string, reviewed planning.Plan) (execution.Result, error) {
+	loaded, err := s.freshSpecification(spec, reviewed)
+	if err != nil {
+		return execution.Result{}, err
+	}
+	return execution.Apply(reviewed, spec, loaded, destination)
+}
+
+func (s ProjectService) freshSpecification(spec project.Manifest, reviewed planning.Plan) (plugins.Set, error) {
+	loaded, err := s.loadPlugins()
+	if err != nil {
+		return plugins.Set{}, err
+	}
+	fresh := planning.BuildWithPlugins(spec, s.catalog, loaded)
+	if !fresh.Executable || !reflect.DeepEqual(reviewed, fresh) {
+		return plugins.Set{}, fmt.Errorf("generation plan changed or is unavailable; review a new plan before applying")
+	}
+	return loaded, nil
+}
+
 // PreflightProject checks that a reviewed plan still matches current inputs
 // and that no generated target already exists. It performs no writes.
 func (s ProjectService) PreflightProject(file string, reviewed planning.Plan) error {

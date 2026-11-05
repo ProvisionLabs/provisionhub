@@ -26,6 +26,7 @@ type ProjectService struct {
 	pluginDirectory string
 	pluginVersions  map[string]string
 	pluginManager   *PluginManager
+	localOnly       bool
 }
 
 func (s ProjectService) manager() PluginManager {
@@ -50,6 +51,7 @@ func NewProjectServiceWithPlugins(directory string) (ProjectService, error) {
 		return ProjectService{}, err
 	}
 	s.pluginDirectory = directory
+	s.localOnly = directory != ""
 	return s, nil
 }
 
