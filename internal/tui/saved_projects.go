@@ -10,6 +10,7 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/ProvisionLabs/provisionhub/internal/application"
 	"github.com/ProvisionLabs/provisionhub/internal/execution"
 	"github.com/ProvisionLabs/provisionhub/internal/planning"
@@ -26,31 +27,33 @@ type savedResultMsg struct {
 }
 
 type savedBrowser struct {
-	service     application.ProjectService
-	saved       application.SavedProjects
-	initErr     error
-	state       string
-	returnState string
-	views       []application.SavedProjectView
-	selected    int
-	current     application.SavedProjectView
-	targetID    string
-	input       textinput.Model
-	plan        planning.Plan
-	preview     application.ProjectLockPreview
-	offset      int
-	busy        bool
-	notice      string
-	err         string
+	service         application.ProjectService
+	saved           application.SavedProjects
+	initErr         error
+	state           string
+	returnState     string
+	views           []application.SavedProjectView
+	candidates      []application.SavedProjectView
+	cleanupSelected map[string]bool
+	cleanupCursor   int
+	selected        int
+	current         application.SavedProjectView
+	targetID        string
+	input           textinput.Model
+	plan            planning.Plan
+	preview         application.ProjectLockPreview
+	offset          int
+	busy            bool
+	notice          string
+	err             string
 }
 
-func newSavedBrowser(service application.ProjectService) savedBrowser {
-	saved, err := application.NewSavedProjects(service)
+func newSavedBrowser(saved application.SavedProjects) savedBrowser {
 	input := textinput.New()
 	input.Prompt = ""
 	input.Placeholder = "./project/provisionhub.yaml"
 	input.SetWidth(60)
-	return savedBrowser{service: service, saved: saved, initErr: err, state: "list", input: input}
+	return savedBrowser{service: saved.Projects, saved: saved, state: "list", input: input}
 }
 
 func (b *savedBrowser) load() tea.Cmd {
@@ -91,6 +94,15 @@ func (b *savedBrowser) receive(message savedResultMsg) tea.Cmd {
 		b.selected = max(0, min(b.selected, len(b.views)-1))
 		b.offset = 0
 		b.state = "list"
+	case "cleanupPreview":
+		b.candidates = message.views
+		b.cleanupSelected = map[string]bool{}
+		b.cleanupCursor = 0
+		b.offset = 0
+		b.state = "cleanup"
+	case "cleanup":
+		b.notice = fmt.Sprintf("Forgot %d unavailable project references", len(b.selectedCleanupIDs()))
+		return b.load()
 	case "open", "refresh":
 		b.current = message.view
 		b.offset = 0
@@ -134,6 +146,16 @@ func (b *savedBrowser) selectedID() string {
 		return ""
 	}
 	return b.views[b.selected].Reference.ID
+}
+
+func (b *savedBrowser) selectedCleanupIDs() []string {
+	ids := make([]string, 0)
+	for _, view := range b.candidates {
+		if b.cleanupSelected[view.Reference.ID] {
+			ids = append(ids, view.Reference.ID)
+		}
+	}
+	return ids
 }
 
 func (b *savedBrowser) beginInput(state string) tea.Cmd {
@@ -199,6 +221,19 @@ func (b *savedBrowser) update(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		}
 		return nil, false
 	}
+	if b.state == "cleanupConfirm" {
+		switch key {
+		case "esc", "n":
+			b.state = "cleanup"
+		case "y":
+			ids, saved := b.selectedCleanupIDs(), b.saved
+			b.busy = true
+			return func() tea.Msg {
+				return savedResultMsg{action: "cleanup", err: saved.CleanupUnavailable(context.Background(), ids)}
+			}, false
+		}
+		return nil, false
+	}
 	if b.state == "lockConfirm" {
 		switch key {
 		case "esc", "n":
@@ -251,6 +286,13 @@ func (b *savedBrowser) update(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 			}
 		case "r":
 			return b.beginInput("register"), false
+		case "c":
+			saved := b.saved
+			b.busy = true
+			return func() tea.Msg {
+				views, err := saved.Unavailable(context.Background())
+				return savedResultMsg{action: "cleanupPreview", views: views, err: err}
+			}, false
 		case "m":
 			if b.selectedID() != "" {
 				return b.beginInput("relocate"), false
@@ -260,6 +302,38 @@ func (b *savedBrowser) update(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 				b.targetID = b.selectedID()
 				b.returnState = "list"
 				b.state = "forgetConfirm"
+			}
+		}
+	case "cleanup":
+		switch key {
+		case "esc":
+			b.state = "list"
+			b.offset = 0
+		case "up", "k":
+			if len(b.candidates) > 0 {
+				b.cleanupCursor = (b.cleanupCursor - 1 + len(b.candidates)) % len(b.candidates)
+			}
+		case "down", "j":
+			if len(b.candidates) > 0 {
+				b.cleanupCursor = (b.cleanupCursor + 1) % len(b.candidates)
+			}
+		case "space", " ":
+			if len(b.candidates) > 0 {
+				id := b.candidates[b.cleanupCursor].Reference.ID
+				b.cleanupSelected[id] = !b.cleanupSelected[id]
+			}
+		case "a":
+			for _, view := range b.candidates {
+				b.cleanupSelected[view.Reference.ID] = true
+			}
+		case "x":
+			b.cleanupSelected = map[string]bool{}
+		case "enter":
+			if len(b.selectedCleanupIDs()) == 0 {
+				b.err = "Select at least one unavailable project"
+			} else {
+				b.err = ""
+				b.state = "cleanupConfirm"
 			}
 		}
 	case "details":
@@ -378,6 +452,7 @@ func openProjectDirectory(directory string) error {
 }
 
 func (b *savedBrowser) view(width, height int) string {
+	width, height = max(1, width), max(1, height)
 	lines := []string{"ProvisionHub · My Projects", ""}
 	switch b.state {
 	case "list", "forgetConfirm", "register", "relocate":
@@ -392,25 +467,42 @@ func (b *savedBrowser) view(width, height int) string {
 				lines = append(lines, "No saved projects yet.")
 			}
 			for i, view := range b.views {
-				prefix := "  "
-				if i == b.selected {
-					prefix = "> "
-				}
-				name, state := view.Manifest.Metadata.Name, "available"
-				if view.ManifestError != nil {
-					name, state = "(unavailable)", view.ManifestError.Error()
-				}
-				lines = append(lines, fmt.Sprintf("%s%s · %d components · %s", prefix, name, len(view.Manifest.CanonicalComponents()), state), "    "+view.Reference.ManifestPath)
+				lines = append(lines, savedProjectRow(view, width, i == b.selected), "    "+fitTail(view.Reference.ManifestPath, width-4))
 			}
-			lines = append(lines, "", "enter open/details · r register · m relocate · f forget · esc home")
+			lines = append(lines, "", "enter details · r register · c cleanup · m relocate · f forget · esc home")
 			if b.state == "forgetConfirm" {
 				lines = append(lines, "Forget Project? Only the SQLite reference is removed.", "y confirm · n/esc cancel")
 			}
 		}
+	case "cleanup", "cleanupConfirm":
+		lines = append(lines, "Cleanup Unavailable Projects", "Select references to forget. Only SQLite registrations will be removed.", "")
+		if len(b.candidates) == 0 {
+			lines = append(lines, "No unavailable projects.")
+		}
+		for i, view := range b.candidates {
+			marker := "[ ]"
+			if b.cleanupSelected[view.Reference.ID] {
+				marker = "[x]"
+			}
+			prefix := "  "
+			if i == b.cleanupCursor {
+				prefix = "> "
+			}
+			lines = append(lines, prefix+marker+" "+fitPlanLine(savedProjectName(view), max(1, width-6)), "    "+fitTail(view.Reference.ManifestPath, width-4))
+		}
+		lines = append(lines, "", fmt.Sprintf("Selected: %d of %d", len(b.selectedCleanupIDs()), len(b.candidates)))
+		if b.state == "cleanupConfirm" {
+			lines = append(lines, "Forget selected SQLite registrations?", "y confirm · n/esc cancel")
+		} else {
+			lines = append(lines, "space toggle · a all · x none · enter review · esc back")
+		}
 	case "details":
 		view := b.current
 		if view.ManifestError != nil {
-			lines = append(lines, "Unavailable project", "Manifest: "+view.Reference.ManifestPath, "Error: "+view.ManifestError.Error(), "", "m relocate · f forget · esc list")
+			lines = append(lines, "Unavailable project")
+			lines = append(lines, wrapSavedLine("Manifest: "+view.Reference.ManifestPath, width)...)
+			lines = append(lines, wrapSavedLine("Error: "+view.ManifestError.Error(), width)...)
+			lines = append(lines, "", "m relocate · f forget · esc list")
 			break
 		}
 		lines = append(lines, view.Manifest.Metadata.Name, "Manifest: "+view.Reference.ManifestPath, "Components:")
@@ -468,37 +560,95 @@ func (b *savedBrowser) view(width, height int) string {
 			lines = append(lines, "enter request confirmation · esc back")
 		}
 	}
+	footer := []string{}
+	if height >= 4 && !b.busy && b.err == "" {
+		switch b.state {
+		case "list", "cleanup":
+			footer = append([]string{}, lines[len(lines)-1:]...)
+			lines = lines[:len(lines)-1]
+		case "cleanupConfirm", "forgetConfirm":
+			footer = append([]string{}, lines[len(lines)-2:]...)
+			lines = lines[:len(lines)-2]
+		}
+	}
 	if b.busy {
 		lines = append(lines, "", "Working…")
 	}
 	if b.notice != "" {
 		lines = append(lines, "", b.notice)
 	}
-	if b.err != "" && b.state != "plan" && b.state != "applyConfirm" {
+	if b.err != "" && b.state != "plan" && b.state != "applyConfirm" && !(b.state == "details" && b.current.ManifestError != nil) {
 		lines = append(lines, "", "Error: "+b.err)
 	}
-	if height < 1 {
-		height = 1
-	}
-	if width < 1 {
-		width = 1
-	}
+	bodyHeight := height - len(footer)
 	start := 0
-	if len(lines) > height {
-		start = max(0, min(b.offset, len(lines)-height))
-		if b.state == "list" || b.state == "forgetConfirm" {
+	if bodyHeight > 0 && len(lines) > bodyHeight {
+		start = max(0, min(b.offset, len(lines)-bodyHeight))
+		if b.state == "list" || b.state == "forgetConfirm" || b.state == "cleanup" || b.state == "cleanupConfirm" {
 			selectedLine := 3 + 2*b.selected
-			if selectedLine >= start+height {
-				start = min(len(lines)-height, selectedLine-height+2)
+			if b.state == "cleanup" || b.state == "cleanupConfirm" {
+				selectedLine = 5 + 2*b.cleanupCursor
+			}
+			if selectedLine >= start+bodyHeight {
+				start = min(len(lines)-bodyHeight, selectedLine-bodyHeight+2)
 			}
 			if selectedLine < start {
 				start = selectedLine
 			}
 		}
 	}
-	visible := lines[start:min(len(lines), start+height)]
+	visible := []string{}
+	if bodyHeight > 0 {
+		visible = append(visible, lines[start:min(len(lines), start+bodyHeight)]...)
+	}
+	visible = append(visible, footer...)
 	for i := range visible {
 		visible[i] = fitPlanLine(visible[i], width)
 	}
 	return strings.Join(visible, "\n")
+}
+
+func savedProjectName(view application.SavedProjectView) string {
+	if view.ManifestError == nil {
+		return view.Manifest.Metadata.Name
+	}
+	path := strings.ReplaceAll(view.Reference.ManifestPath, "\\", "/")
+	return filepath.Base(filepath.Dir(path))
+}
+
+func savedProjectRow(view application.SavedProjectView, width int, selected bool) string {
+	prefix := "  "
+	if selected {
+		prefix = "> "
+	}
+	status := "Available"
+	if view.ManifestError != nil {
+		status = "Unavailable"
+	}
+	name := savedProjectName(view)
+	count := len(view.Manifest.CanonicalComponents())
+	if width < 42 {
+		return fitPlanLine(fmt.Sprintf("%s%s  %d  %s", prefix, fitPlanLine(name, max(1, width-18)), count, status), width)
+	}
+	countText := fmt.Sprintf("%d components", count)
+	nameWidth := max(1, width-lipgloss.Width(prefix)-lipgloss.Width(countText)-lipgloss.Width(status)-4)
+	name = fitPlanLine(name, nameWidth)
+	return prefix + name + strings.Repeat(" ", max(0, nameWidth-lipgloss.Width(name))) + "  " + countText + "  " + status
+}
+
+func wrapSavedLine(value string, width int) []string {
+	result := []string{}
+	current := ""
+	for _, r := range value {
+		part := string(r)
+		if lipgloss.Width(part) > width {
+			part = "?"
+		}
+		if current != "" && lipgloss.Width(current+part) > width {
+			result = append(result, current)
+			current = ""
+		}
+		current += part
+	}
+	return append(result, current)
 }

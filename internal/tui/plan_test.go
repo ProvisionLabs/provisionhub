@@ -27,7 +27,7 @@ func reviewWizard(t *testing.T, m *Model, destination string) {
 }
 
 func TestWizardPlanPreviewPreservesSelectionsAndSaveBehavior(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	root := t.TempDir()
 	destination := filepath.Join(root, "new project café")
 	reviewWizard(t, m, destination)
@@ -75,7 +75,7 @@ func TestWizardPlanPreviewPreservesSelectionsAndSaveBehavior(t *testing.T) {
 }
 
 func TestWizardPreviewShortcutRemainsTextWhileEditing(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	press(m, tea.KeyEnter, "")
 	typeText(m, "pqjk")
 	if m.wizard.name.Value() != "pqjk" || m.wizard.preview {
@@ -88,7 +88,7 @@ func TestWizardPreviewShortcutRemainsTextWhileEditing(t *testing.T) {
 
 func TestPlanPreviewQuitKeysNeverSave(t *testing.T) {
 	for _, key := range []tea.KeyPressMsg{{Code: 'q', Text: "q"}, {Code: 'c', Mod: tea.ModCtrl}} {
-		m := newTestModel()
+		m := newTestModel(t)
 		destination := filepath.Join(t.TempDir(), "not-created")
 		reviewWizard(t, m, destination)
 		press(m, 'p', "p")

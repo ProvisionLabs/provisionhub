@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -9,7 +10,15 @@ import (
 	"github.com/ProvisionLabs/provisionhub/internal/application"
 )
 
-func newTestModel() *Model { return NewModel(application.Info()) }
+func newTestModel(t *testing.T) *Model {
+	t.Helper()
+	databasePath := filepath.Join(t.TempDir(), "provisionhub.db")
+	service := application.NewProjectService()
+	saved := application.SavedProjects{DatabasePath: databasePath, Projects: service}
+	settings := application.NewLocalSettings()
+	settings.Path = databasePath
+	return newModelWithPersistence(application.Info(), service, saved, settings)
+}
 
 func press(m *Model, code rune, text string) tea.Cmd {
 	_, cmd := m.Update(tea.KeyPressMsg{Code: code, Text: text})
@@ -17,7 +26,7 @@ func press(m *Model, code rune, text string) tea.Cmd {
 }
 
 func TestInitialView(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	if m.Init() != nil {
 		t.Fatal("initial model should have no command")
 	}
@@ -37,7 +46,7 @@ func TestInitialView(t *testing.T) {
 
 func TestNavigationAndBack(t *testing.T) {
 	for index, item := range homeMenu {
-		m := newTestModel()
+		m := newTestModel(t)
 		for range index {
 			press(m, tea.KeyDown, "")
 		}
@@ -63,7 +72,7 @@ func TestNavigationAndBack(t *testing.T) {
 }
 
 func TestMenuKeysWrapAndSecondaryIgnoresSelection(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	press(m, 'k', "k")
 	if m.nav.selected != len(homeMenu)-1 {
 		t.Fatalf("up from first item selected %d", m.nav.selected)
@@ -88,7 +97,7 @@ func TestQuitKeys(t *testing.T) {
 		{Code: 'q', Text: "q"},
 		{Code: 'c', Mod: tea.ModCtrl},
 	} {
-		m := newTestModel()
+		m := newTestModel(t)
 		_, cmd := m.Update(msg)
 		if cmd == nil {
 			t.Fatalf("key %q did not return quit command", msg.String())
@@ -100,7 +109,7 @@ func TestQuitKeys(t *testing.T) {
 }
 
 func TestResizeFitsViewport(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	for _, size := range []tea.WindowSizeMsg{
 		{Width: 80, Height: 24},
 		{Width: 40, Height: 17},

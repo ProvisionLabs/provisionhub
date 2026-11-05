@@ -7,11 +7,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ProvisionLabs/provisionhub/internal/application"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
 )
 
 func executeCLI(args ...string) (string, error) {
-	command := NewRootCommand()
+	return executeCLIWithDatabase(testDatabasePath, args...)
+}
+
+func executeCLIWithDatabase(databasePath string, args ...string) (string, error) {
+	service := application.NewProjectService()
+	saved := application.SavedProjects{DatabasePath: databasePath, Projects: service}
+	settings := application.NewLocalSettings()
+	settings.Path = databasePath
+	command := newRootCommand(func() (application.SavedProjects, error) { return saved, nil }, settings)
 	var output bytes.Buffer
 	command.SetOut(&output)
 	command.SetArgs(args)

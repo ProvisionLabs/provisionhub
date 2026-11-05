@@ -44,7 +44,7 @@ func (w *wizard) beginComponentEdit(index int, service application.ProjectServic
 	w.step = componentCategoryStep
 }
 
-func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.ProjectService) (tea.Cmd, bool) {
+func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.ProjectService, saved application.SavedProjects, savedErr error) (tea.Cmd, bool) {
 	key := msg.String()
 	switch w.step {
 	case componentListStep:
@@ -172,14 +172,14 @@ func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.Proje
 				plan := w.plan
 				return func() tea.Msg {
 					created, applied, err := service.CreateAndApplyComponentProject(name, destination, components, plan)
-					err = errors.Join(err, registerCreatedProject(service, created.ManifestPath))
+					err = errors.Join(err, registerCreatedProject(saved, savedErr, created.ManifestPath))
 					return projectCreatedMsg{result: created, applied: applied, err: err}
 				}, false
 			}
 			w.saving = true
 			return func() tea.Msg {
 				result, err := service.CreateComponentProject(name, destination, components)
-				err = errors.Join(err, registerCreatedProject(service, result.ManifestPath))
+				err = errors.Join(err, registerCreatedProject(saved, savedErr, result.ManifestPath))
 				return projectCreatedMsg{result: result, err: err}
 			}, false
 		}
@@ -204,13 +204,12 @@ func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.Proje
 	return nil, false
 }
 
-func registerCreatedProject(service application.ProjectService, path string) error {
+func registerCreatedProject(saved application.SavedProjects, savedErr error, path string) error {
 	if path == "" {
 		return nil
 	}
-	saved, err := application.NewSavedProjects(service)
-	if err != nil {
-		return fmt.Errorf("manifest created at %s; registration failed: %w", path, err)
+	if savedErr != nil {
+		return fmt.Errorf("manifest created at %s; registration failed: %w", path, savedErr)
 	}
 	if _, err := saved.Register(context.Background(), path); err != nil {
 		return fmt.Errorf("manifest created at %s; registration failed: %w", path, err)

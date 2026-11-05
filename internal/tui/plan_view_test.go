@@ -13,7 +13,7 @@ import (
 )
 
 func TestPlanPreviewRendersScrollableDiagnosticsWithoutWrites(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	destination := filepath.Join(t.TempDir(), "not-created")
 	reviewWizard(t, m, destination)
 	press(m, 'p', "p")
@@ -52,7 +52,7 @@ func TestPlanPreviewRendersScrollableDiagnosticsWithoutWrites(t *testing.T) {
 }
 
 func TestPlanPreviewResizesWithinTerminalCells(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	reviewWizard(t, m, filepath.Join(t.TempDir(), "not-created"))
 	press(m, 'p', "p")
 	m.wizard.plan.Technologies[0].Name = strings.Repeat("界é", 40)

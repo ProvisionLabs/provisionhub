@@ -1,6 +1,7 @@
 package application
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -119,5 +120,147 @@ func TestSavedProjectValidationAndCanonicalSymlink(t *testing.T) {
 	views, err := service.List(ctx)
 	if err != nil || len(views) != 1 {
 		t.Fatalf("list after failures: %v %+v", err, views)
+	}
+}
+
+func TestExplicitSavedProjectDatabaseDoesNotTouchSentinel(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	projectService := NewProjectService()
+	sentinel := SavedProjects{DatabasePath: filepath.Join(root, "sentinel", "provisionhub.db"), Projects: projectService}
+	isolated := SavedProjects{DatabasePath: filepath.Join(root, "isolated", "provisionhub.db"), Projects: projectService}
+	legitimate := savedFixture(t, filepath.Join(root, "legitimate"))
+	if _, err := sentinel.Register(ctx, legitimate); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(sentinel.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	temporary := savedFixture(t, filepath.Join(root, "temporary"))
+	if _, err := isolated.Register(ctx, temporary); err != nil {
+		t.Fatal(err)
+	}
+	store, err := localdb.Open(ctx, isolated.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	views, err := isolated.List(ctx)
+	if err != nil || len(views) != 1 || views[0].ManifestError != nil {
+		t.Fatalf("isolated reopen: %+v %v", views, err)
+	}
+	after, err := os.ReadFile(sentinel.DatabasePath)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("sentinel changed: %v", err)
+	}
+	views, err = sentinel.List(ctx)
+	canonical, canonicalErr := CanonicalManifestPath(legitimate)
+	if canonicalErr != nil {
+		t.Fatal(canonicalErr)
+	}
+	if err != nil || len(views) != 1 || views[0].Reference.ManifestPath != canonical {
+		t.Fatalf("sentinel registration changed: %+v %v", views, err)
+	}
+}
+
+func TestUnavailableCleanupPreviewSelectionAndRecovery(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	saved := SavedProjects{DatabasePath: filepath.Join(root, "data.db"), Projects: NewProjectService()}
+	availableFile := savedFixture(t, filepath.Join(root, "available"))
+	movedFile := savedFixture(t, filepath.Join(root, "moved-original"))
+	invalidFile := savedFixture(t, filepath.Join(root, "invalid"))
+	available, err := saved.Register(ctx, availableFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	moved, err := saved.Register(ctx, movedFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalid, err := saved.Register(ctx, invalidFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newDirectory := filepath.Join(root, "moved-new")
+	if err := os.Rename(filepath.Dir(movedFile), newDirectory); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(invalidFile, []byte("not: valid\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	candidates, err := saved.Unavailable(ctx)
+	if err != nil || len(candidates) != 2 {
+		t.Fatalf("cleanup preview: %+v %v", candidates, err)
+	}
+	views, err := saved.List(ctx)
+	if err != nil || len(views) != 3 {
+		t.Fatalf("preview changed database: %+v %v", views, err)
+	}
+	if err := saved.CleanupUnavailable(ctx, []string{available.ID}); !errors.Is(err, ErrSavedProjectAvailable) {
+		t.Fatalf("available project accepted: %v", err)
+	}
+	if err := saved.CleanupUnavailable(ctx, []string{invalid.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(invalidFile); err != nil {
+		t.Fatalf("cleanup deleted manifest: %v", err)
+	}
+	views, err = saved.List(ctx)
+	if err != nil || len(views) != 2 {
+		t.Fatalf("selective cleanup removed other records: %+v %v", views, err)
+	}
+	if err := saved.Relocate(ctx, moved.ID, newDirectory); err != nil {
+		t.Fatal(err)
+	}
+	if err := saved.CleanupUnavailable(ctx, []string{moved.ID}); !errors.Is(err, ErrSavedProjectAvailable) {
+		t.Fatalf("recovered project removed: %v", err)
+	}
+	opened, err := saved.Open(ctx, moved.ID)
+	if err != nil || opened.ManifestError != nil {
+		t.Fatalf("relocated project inaccessible: %+v %v", opened, err)
+	}
+	if _, err := saved.Open(ctx, available.ID); err != nil {
+		t.Fatalf("available project removed: %v", err)
+	}
+}
+
+func TestCleanupTransactionRollbackAndDatabaseFailure(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	saved := SavedProjects{DatabasePath: filepath.Join(root, "data.db"), Projects: NewProjectService()}
+	file := savedFixture(t, filepath.Join(root, "project"))
+	ref, err := saved.Register(ctx, file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(file); err != nil {
+		t.Fatal(err)
+	}
+	store, err := localdb.Open(ctx, saved.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ForgetSavedProjects(ctx, []string{ref.ID, "missing"}); !errors.Is(err, localdb.ErrSavedProjectMissing) {
+		t.Fatalf("expected rollback: %v", err)
+	}
+	store.Close()
+	views, err := saved.List(ctx)
+	if err != nil || len(views) != 1 {
+		t.Fatalf("transaction deleted first record: %+v %v", views, err)
+	}
+	blocked := filepath.Join(root, "blocked")
+	if err := os.WriteFile(blocked, []byte("file"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	broken := SavedProjects{DatabasePath: filepath.Join(blocked, "db"), Projects: NewProjectService()}
+	if _, err := broken.Unavailable(ctx); err == nil {
+		t.Fatal("database error hidden during preview")
+	}
+	if err := broken.CleanupUnavailable(ctx, []string{ref.ID}); err == nil {
+		t.Fatal("database error hidden during cleanup")
 	}
 }

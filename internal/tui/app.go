@@ -63,13 +63,24 @@ type Model struct {
 	workspaceRequest uint64
 	pluginBrowser    pluginBrowser
 	savedBrowser     savedBrowser
+	saved            application.SavedProjects
+	savedErr         error
+	localSettings    *application.LocalSettings
 }
 
 func NewModel(info application.AppInfo) *Model {
+	service := application.NewProjectService()
+	saved, err := application.NewSavedProjects(service)
+	m := newModelWithPersistence(info, service, saved, application.NewLocalSettings())
+	m.savedErr = err
+	m.savedBrowser.initErr = err
+	return m
+}
+
+func newModelWithPersistence(info application.AppInfo, service application.ProjectService, saved application.SavedProjects, localSettings *application.LocalSettings) *Model {
 	h := help.New()
 	h.SetWidth(48)
-	service := application.NewProjectService()
-	return &Model{info: info, service: service, help: h, width: 80, height: 24, preferences: newPreferences(application.NewLocalSettings()), pluginBrowser: newPluginBrowser(application.PluginManager{}), savedBrowser: newSavedBrowser(service)}
+	return &Model{info: info, service: service, saved: saved, localSettings: localSettings, help: h, width: 80, height: 24, preferences: newPreferences(localSettings), pluginBrowser: newPluginBrowser(application.PluginManager{}), savedBrowser: newSavedBrowser(saved)}
 }
 
 // NewModelWithPlugins loads an explicit local plugin directory for this session.
@@ -78,9 +89,10 @@ func NewModelWithPlugins(info application.AppInfo, directory string) (*Model, er
 	if err != nil {
 		return nil, err
 	}
-	m := NewModel(info)
-	m.service = service
-	m.savedBrowser = newSavedBrowser(service)
+	saved, savedErr := application.NewSavedProjects(service)
+	m := newModelWithPersistence(info, service, saved, application.NewLocalSettings())
+	m.savedErr = savedErr
+	m.savedBrowser.initErr = savedErr
 	return m, nil
 }
 
@@ -133,7 +145,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.nav.current == createProject && m.wizard.applying {
 			return m, nil
 		}
-		if m.nav.current == openProject && m.savedBrowser.busy && (m.savedBrowser.state == "applyConfirm" || m.savedBrowser.state == "lockConfirm" || m.savedBrowser.state == "lock") {
+		if m.nav.current == openProject && m.savedBrowser.busy && (m.savedBrowser.state == "applyConfirm" || m.savedBrowser.state == "lockConfirm" || m.savedBrowser.state == "lock" || m.savedBrowser.state == "cleanupConfirm") {
 			return m, nil
 		}
 		if msg.String() == "ctrl+c" {
@@ -171,7 +183,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		if m.nav.current == createProject && (m.wizard.step == projectInfoStep || m.wizard.step == componentNameStep) {
-			cmd, back := m.wizard.update(msg, m.service)
+			cmd, back := m.wizard.update(msg, m.service, m.saved, m.savedErr)
 			if back {
 				m.nav.back()
 			}
@@ -181,7 +193,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.quit):
 			return m, tea.Quit
 		case m.nav.current == createProject:
-			cmd, back := m.wizard.update(msg, m.service)
+			cmd, back := m.wizard.update(msg, m.service, m.saved, m.savedErr)
 			if back {
 				m.nav.back()
 			}
@@ -198,7 +210,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.pluginBrowser.start("load", "", "")
 			}
 			if m.nav.current == openProject {
-				m.savedBrowser = newSavedBrowser(m.service)
+				m.saved.Projects = m.service
+				m.savedBrowser = newSavedBrowser(m.saved)
+				m.savedBrowser.initErr = m.savedErr
 				return m, m.savedBrowser.load()
 			}
 			if m.nav.current == settings {
@@ -213,7 +227,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Batch(cmd, func() tea.Msg {
 					ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 					defer cancel()
-					directory, err := application.NewLocalSettings().DefaultWorkspace(ctx)
+					directory, err := m.localSettings.DefaultWorkspace(ctx)
 					return workspacePreferenceMsg{request: request, directory: directory, err: err}
 				})
 			}

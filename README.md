@@ -89,7 +89,7 @@ For development and testing commands, see the [development guide](docs/developme
 
 ### Reopen and manage projects
 
-Creating a manifest registers its location locally. Home → **My Projects** reads each current manifest, so names and components remain portable project data. Press `r` to register an existing project, Enter to open details, `m` to relocate a moved reference, or `f` to confirm **Forget Project**. Forgetting removes only the SQLite reference. Details offer `p` for a read-only plan, `g` then `y` to approve generation, and `l` for plugin lock validation, restoration, and confirmed updates. Opening never generates files.
+Creating a manifest registers its location locally. Home → **My Projects** reads each current manifest, so names and components remain portable project data. Press `r` to register an existing project, Enter to open details, `m` to relocate a moved reference, or `f` to confirm **Forget Project**. Press `c` to review and selectively clean up unavailable references after confirmation. Forgetting and cleanup remove only SQLite references. Details offer `p` for a read-only plan, `g` then `y` to approve generation, and `l` for plugin lock validation, restoration, and confirmed updates. Opening never generates files.
 
 ```sh
 provisionhub project list

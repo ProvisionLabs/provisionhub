@@ -39,6 +39,8 @@ The Go repository owns catalog definitions, manifest parsing, application servic
 
 Initialization registers the created manifest in SQLite after it is saved. `project list/register/forget` and Home → **My Projects** manage local references. SQLite migration 6 stores only IDs, canonical paths, and timestamps; manifest names/components/connections and lock versions are always read from disk. Moved or invalid projects remain listed for relocation or forgetting. Project details offer read-only plan review, confirmed apply, and plugin lock validation, creation, update preview, and explicit official artifact restoration. Local discovery and opening work offline. See [saved project management](project-management.md), [TUI controls](tui.md), and [CLI reference](cli-reference.md).
 
+CLI and TUI tests now inject temporary saved-project databases, with CLI, TUI, and application package-level temporary data directories as a fallback. A real CLI subprocess regression test supplies isolated paths for all supported OS conventions and verifies a separate sentinel SQLite file remains unchanged. My Projects shows compact availability rows and offers a selective, confirmed cleanup preview for unavailable references; available references are never cleanup candidates. Unavailable rows remain until relocation, repair, or explicit forgetting.
+
 `plugin list/search/info/install/update/updates/remove` and Home → Plugins share
 `application.PluginManager`. List and generation remain offline. Discovery is
 explicit, with clearly stale cache fallback. Installation verifies bounded HTTPS

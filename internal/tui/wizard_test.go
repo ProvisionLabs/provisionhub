@@ -26,7 +26,7 @@ func openWizard(m *Model, name, destination string) {
 }
 
 func TestCreateProjectOpensNamedComponentsDirectly(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	press(m, tea.KeyEnter, "")
 	if strings.Contains(m.View().Content, "F2") || strings.Contains(m.View().Content, "Legacy categories") {
 		t.Fatal("legacy mode still appears in project information")
@@ -42,7 +42,7 @@ func TestCreateProjectOpensNamedComponentsDirectly(t *testing.T) {
 }
 
 func TestWizardComponentReviewAndSuccess(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	destination := filepath.Join(t.TempDir(), "new project")
 	openWizard(m, "my-app", destination)
 	if m.wizard.step != componentListStep {
@@ -93,7 +93,7 @@ func TestWizardComponentReviewAndSuccess(t *testing.T) {
 }
 
 func TestWizardInputValidationAndTextShortcuts(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	press(m, tea.KeyEnter, "")
 	typeText(m, "qjkBad Name")
 	if m.nav.current != createProject || !strings.HasPrefix(m.wizard.name.Value(), "qjk") {
@@ -116,7 +116,7 @@ func TestWizardInputValidationAndTextShortcuts(t *testing.T) {
 }
 
 func TestWizardFailureCanRetry(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	destination := filepath.Join(t.TempDir(), "project")
 	openWizard(m, "demo", destination)
 	addNestComponent(t, m, "api")
@@ -150,7 +150,7 @@ func TestWizardFailureCanRetry(t *testing.T) {
 }
 
 func TestWizardResizeFits(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	press(m, tea.KeyEnter, "")
 	for _, size := range []tea.WindowSizeMsg{{Width: 80, Height: 24}, {Width: 40, Height: 17}, {Width: 20, Height: 5}, {Width: 1, Height: 1}} {
 		m.Update(size)
