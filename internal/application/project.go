@@ -66,27 +66,27 @@ func (s ProjectService) ValidateProjectInfo(name, destination string) (string, e
 }
 
 // ValidateComponentsInput constructs a project specification in memory.
-func (s ProjectService) ValidateComponentsInput(name, destination string, components []project.Component) (project.Manifest, error) {
+func (s ProjectService) ValidateComponentsInput(name, destination string, components []project.Component) (project.Specification, error) {
 	if _, err := s.ValidateProjectInfo(name, destination); err != nil {
-		return project.Manifest{}, err
+		return project.Specification{}, err
 	}
-	spec := project.Manifest{APIVersion: project.APIVersion, Kind: project.Kind,
+	spec := project.Specification{APIVersion: project.APIVersion, Kind: project.Kind,
 		Metadata: project.Metadata{Name: name}, Spec: project.Spec{Components: append([]project.Component{}, components...)}}
 	if err := spec.Validate(); err != nil {
-		return project.Manifest{}, err
+		return project.Specification{}, err
 	}
 	for _, component := range spec.CanonicalComponents() {
 		if _, err := s.catalog.ValidateSelection(catalog.Category(component.Type), component.Technology); err != nil {
-			return project.Manifest{}, fmt.Errorf("component %q: %w", component.Name, err)
+			return project.Specification{}, fmt.Errorf("component %q: %w", component.Name, err)
 		}
 	}
 	if err := s.catalog.ValidateCombination(selectionIDs(spec)...); err != nil {
-		return project.Manifest{}, err
+		return project.Specification{}, err
 	}
 	return spec, nil
 }
 
-func selectionIDs(spec project.Manifest) []string {
+func selectionIDs(spec project.Specification) []string {
 	components := spec.CanonicalComponents()
 	ids := make([]string, 0, len(components))
 	for _, component := range components {

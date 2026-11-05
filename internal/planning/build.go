@@ -10,19 +10,19 @@ import (
 )
 
 // Build constructs a conceptual plan. Catalog membership does not imply a generator exists.
-func Build(manifest project.Manifest, technologies catalog.Catalog) Plan {
+func Build(manifest project.Specification, technologies catalog.Catalog) Plan {
 	return BuildWithPlugins(manifest, technologies, plugins.Set{})
 }
 
 // BuildWithPlugins adds concrete file operations for locally loaded generators.
 // Plugin files have already been read and validated; this function has no I/O.
-func BuildWithPlugins(manifest project.Manifest, technologies catalog.Catalog, loaded plugins.Set) Plan {
+func BuildWithPlugins(manifest project.Specification, technologies catalog.Catalog, loaded plugins.Set) Plan {
 	plan := Plan{
-		ProjectName: manifest.Metadata.Name, ManifestVersion: manifest.APIVersion,
+		ProjectName: manifest.Metadata.Name, SpecificationVersion: manifest.APIVersion,
 		Technologies: []Technology{}, Operations: []Operation{}, Diagnostics: []Diagnostic{}, Status: StatusInvalid,
 	}
 	if err := manifest.Validate(); err != nil {
-		plan.Diagnostics = append(plan.Diagnostics, Diagnostic{Severity: SeverityError, Code: InvalidManifest, Message: err.Error()})
+		plan.Diagnostics = append(plan.Diagnostics, Diagnostic{Severity: SeverityError, Code: InvalidSpecification, Message: err.Error()})
 		return finalizePlan(plan)
 	}
 	components := manifest.CanonicalComponents()

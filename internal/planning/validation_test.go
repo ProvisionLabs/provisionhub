@@ -13,15 +13,15 @@ func TestBuildRejectsInvalidConfiguration(t *testing.T) {
 		edit func(*project.Manifest)
 		code DiagnosticCode
 	}{
-		{"version", func(m *project.Manifest) { m.APIVersion = "unknown" }, InvalidManifest},
-		{"kind", func(m *project.Manifest) { m.Kind = "Unknown" }, InvalidManifest},
-		{"name", func(m *project.Manifest) { m.Metadata.Name = "Bad Name" }, InvalidManifest},
-		{"missing backend", func(m *project.Manifest) { m.Spec.Backend.Technology = "" }, InvalidManifest},
+		{"version", func(m *project.Manifest) { m.APIVersion = "unknown" }, InvalidSpecification},
+		{"kind", func(m *project.Manifest) { m.Kind = "Unknown" }, InvalidSpecification},
+		{"name", func(m *project.Manifest) { m.Metadata.Name = "Bad Name" }, InvalidSpecification},
+		{"missing backend", func(m *project.Manifest) { m.Spec.Backend.Technology = "" }, InvalidSpecification},
 		{"unknown backend", func(m *project.Manifest) { m.Spec.Backend.Technology = "missing" }, InvalidTechnology},
 		{"wrong category", func(m *project.Manifest) { m.Spec.Backend.Technology = "react" }, InvalidTechnology},
 		{"unknown frontend", func(m *project.Manifest) { m.Spec.Frontend = &project.TechnologySelection{Technology: "missing"} }, InvalidTechnology},
 		{"unknown database", func(m *project.Manifest) { m.Spec.Database = &project.TechnologySelection{Technology: "missing"} }, InvalidTechnology},
-		{"empty optional selection", func(m *project.Manifest) { m.Spec.Frontend = &project.TechnologySelection{} }, InvalidManifest},
+		{"empty optional selection", func(m *project.Manifest) { m.Spec.Frontend = &project.TechnologySelection{} }, InvalidSpecification},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			manifest := testManifest()

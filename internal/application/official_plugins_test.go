@@ -72,6 +72,11 @@ func TestOfficialPackageLifecycle(t *testing.T) {
 	if err != nil || len(applied.Created) != 40 {
 		t.Fatal(len(applied.Created), err)
 	}
+	for _, name := range []string{"provisionhub.yaml", filepath.Join(".provisionhub", "plugins.lock.yaml")} {
+		if _, err := os.Stat(filepath.Join(destination, name)); !os.IsNotExist(err) {
+			t.Fatalf("official generation wrote project metadata %s: %v", name, err)
+		}
+	}
 	hashes := map[string]string{}
 	for _, name := range applied.Created {
 		data, err := os.ReadFile(filepath.Join(destination, name))

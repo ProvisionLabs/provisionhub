@@ -40,8 +40,7 @@ const (
 type DiagnosticCode string
 
 const (
-	InvalidManifest          DiagnosticCode = "invalid_manifest"
-	ManifestLoadFailed       DiagnosticCode = "manifest_load_failed"
+	InvalidSpecification     DiagnosticCode = "invalid_specification"
 	InvalidTechnology        DiagnosticCode = "invalid_technology"
 	IncompatibleTechnologies DiagnosticCode = "incompatible_technologies"
 	MissingOperationProvider DiagnosticCode = "missing_operation_provider"
@@ -54,15 +53,15 @@ const (
 // Plan separates successful construction from execution availability.
 // Collection fields are emitted as JSON arrays, including when empty.
 type Plan struct {
-	ProjectName     string               `json:"projectName"`
-	ManifestVersion string               `json:"manifestVersion"`
-	Components      []Component          `json:"components,omitempty"`
-	Connections     []project.Connection `json:"connections,omitempty"`
-	Technologies    []Technology         `json:"technologies"`
-	Operations      []Operation          `json:"operations"`
-	Diagnostics     []Diagnostic         `json:"diagnostics"`
-	Status          Status               `json:"status"`
-	Executable      bool                 `json:"executable"`
+	ProjectName          string               `json:"projectName"`
+	SpecificationVersion string               `json:"specificationVersion"`
+	Components           []Component          `json:"components,omitempty"`
+	Connections          []project.Connection `json:"connections,omitempty"`
+	Technologies         []Technology         `json:"technologies"`
+	Operations           []Operation          `json:"operations"`
+	Diagnostics          []Diagnostic         `json:"diagnostics"`
+	Status               Status               `json:"status"`
+	Executable           bool                 `json:"executable"`
 }
 
 type Component struct {

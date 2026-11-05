@@ -1,5 +1,7 @@
 # Project manifest: `provisionhub.yaml`
 
+> Historical guide: Project YAML persistence was retired by [ADR-0011](adr/0011-one-time-project-generation.md). Current CLI/TUI create an in-memory specification and generate source without this file. Existing manifests are not modified or deleted.
+
 The manifest describes requested technologies. Exact plugin versions and checksums belong in the optional [project plugin lock](project-plugin-locking.md), stored at `.provisionhub/plugins.lock.yaml` beside the manifest. Component repository layout does not affect the lock path.
 
 Local **My Projects** registration stores only a path and timestamps in SQLite. The manifest remains authoritative for the project name, components, technologies, and connections. See [saved project management](project-management.md).

@@ -1,81 +1,23 @@
 # Architecture
 
-## Status
-
-This describes the **target architecture** and identifies what exists today. The repository has CLI/TUI project generation, a built-in catalog, named-component project manifests, deterministic planning, local declarative plugins, and separately approved file generation. Application Settings uses local SQLite and native credential storage; optional GitHub device authorization is implemented. Registry behavior remains future work. Official NestJS and Next.js plugins live in the separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins). The earlier control-plane, queue, and worker diagram was retired with the local-first decision in [ADR-0003](../adr/0003-local-first-provisioning.md).
-
-## Runtime shape
+ProvisionHub is a local-first, one-time project initializer. One process hosts the Cobra CLI or Bubble Tea TUI and shares application services with the Planning and Execution Engines.
 
 ```text
-              TUI           non-interactive CLI
-                \             /
-                 application use cases
-                 /       |       \
-          project data  core planning  plugin management
-                             |                |
-                      local execution ---- plugin operations
-                             |                |
-                      files and external tools/providers
+CLI / TUI -> in-memory project specification -> Planning Engine
+                                                -> reviewed plan -> Execution Engine -> source files
+                         local and managed plugins ---------^
 ```
 
-One local process is the default. TUI and CLI are adapters into the same application use cases. Application services coordinate project state, composition, planning, approval, and execution; they do not depend on terminal rendering or command parsing. The core owns deterministic composition rules and planned operation semantics. The current plugin system discovers declarative local file generators under an explicit contract; it does not invoke plugin code. Provider-specific behavior belongs in plugins or adapters at the external boundary.
+| Boundary | Responsibility |
+| --- | --- |
+| CLI/TUI | Collect selections, present diagnostics and a plan, require approval |
+| Project and catalog | Validate component names, technologies, paths, and conflicts |
+| Plugins | Load declarative plugin manifests, validate templates and paths, select installed versions |
+| Planning | Build deterministic operations and diagnostics without writes or network access |
+| Execution | Recheck a reviewed plan and publish root-confined files without overwrite |
+| Local SQLite | Persist Settings, Git account metadata, and managed plugin installation metadata |
+| Registry | Discover and install official plugin packages on explicit request |
 
-## Responsibilities
+The project specification is a Go value and is never serialized to a project YAML file. No project lockfile or saved-project registration is created. SQLite is optional when generators are supplied through an explicit local plugin directory; installed managed plugins use SQLite metadata and artifact integrity checks. The project directory remains usable without ProvisionHub after generation. Historical saved-project database rows and existing project files are left untouched.
 
-| Boundary | Responsibility | Must not own |
-| --- | --- | --- |
-| TUI | Screens, navigation, input, plan and progress display | Composition rules or provider calls |
-| CLI | Commands, flags, non-interactive input and output | A separate provisioning workflow |
-| Application | Coordinate use cases and project lifecycle; apply approval policy | Terminal widgets or provider details |
-| Planning (implemented) | Resolve selected technologies and plugin capabilities, validate/order conceptual and concrete operations, return structured diagnostics | Filesystem/network effects, provider execution, terminal rendering |
-| Core | Resolve capabilities and constraints, form plans, execute predictable operations | Plugin distribution or UI behavior |
-| Plugins | Discovery, metadata, lifecycle, and integration operations | Global workflow policy |
-| Project | Local manifest and existing-project operations | Remote service state |
-| Settings | Typed preferences and validation | Project technology decisions, credentials |
-| Local database | Parameterized SQLite persistence and transactional migrations | Provider protocols or secrets |
-| Credentials | Native OS vault get/replace/delete | Project manifests or plaintext fallback |
-| Git provider | Identity, authentication methods, device flow and refresh | Project generation or repository modifications |
-| Registry (future) | Catalog metadata retrieval and local catalog management | A required network dependency |
-| External boundary | Filesystem, subprocesses, source-control services, cloud APIs | Application-level orchestration |
-
-CLI, TUI, application, catalog, project, planning, plugins, and execution packages now exist. The catalog holds stable technology definitions. The project package owns manifest YAML, canonical components, and persistence; application services coordinate saving, planning, preflight, and explicit apply. `internal/planning` remains pure, `internal/plugins` validates local declarative generators, and `internal/execution` publishes reviewed files without overwrite. Connection execution, plugin installation, and registry remain future boundaries. See [named components](components.md), the [manifest specification](../project-manifest.md), and [generation planning](../generation-planning.md).
-
-Application preferences live in `internal/settings`; `internal/localdb` supplies
-SQLite repositories behind application interfaces. `application.LocalSettings`
-opens/closes stores per explicit operation and coordinates `AccountService`, the
-`credentials.Store` vault interface, and `gitprovider.Provider`. There is no
-database initialization or authentication requirement in CLI project commands.
-TUI settings I/O runs in commands with contexts; generation uses its existing
-approval path. Provider status is cached in presentation state between explicit
-operations, not fetched on redraw. See [local persistence](../local-persistence.md),
-[Git providers](../git-providers.md), and [ADR-0008](../adr/0008-local-settings-and-credentials.md).
-
-## Planned flow
-
-1. Read a local project manifest or collect new-project intent.
-2. Gather plugin metadata and configuration requirements without executing side effects.
-3. Resolve dependencies, capabilities, and compatibility constraints; report conflicts clearly.
-4. Produce a reviewable operation plan with order, inputs, expected outputs, and risk information.
-5. Require explicit approval before file generation. The TUI's labeled **Generate Project** action is the approval for a new project; CLI apply requires literal terminal approval or `--yes` for automation.
-6. Execute operations locally, report progress and errors, and persist enough state for later inspection.
-
-Built-in configuration, manifest loading, ID/category/explicit-conflict validation, conceptual and concrete planning, and local file execution are implemented. `ProjectService.PlanProject` loads a file and delegates to `PlanManifest`; the TUI uses `PlanManifest` for unsaved Review selections. A local plugin can support a backend or frontend capability with concrete target paths. Unprovided capabilities remain unavailable and make a plan non-executable. A valid graph has `status: planned` even with missing-provider warnings. Operations use stable IDs and lexical dependency-first ordering; graph defects produce structured errors, not a partial schedule.
-
-The TUI's optional `p` preview opens the read-only plan from Review; Enter/Esc returns without writes. Review labels its action **Generate Project** when all selected capabilities are supported. Enter explicitly authorizes saving the manifest and applying that reviewed plan in one command. Unsupported selections show **Save Manifest Only**. If application fails after manifest publication, the result screen keeps the manifest and offers a fresh preview and confirmed retry. The CLI still separates plan from apply and requires `yes` or `--yes`. [ADR-0006](../adr/0006-declarative-local-generation.md) records the initial file-generation contract and its limited cleanup guarantees. Broader operation risk, cancellation, idempotency, credential handling, and infrastructure approval need separate designs.
-
-## Deployment and extension
-
-No centralized control plane, queue, distributed worker, mandatory gRPC service, or Kubernetes deployment is part of the default runtime. Optional remote or distributed execution can be designed later behind the application/core boundaries without changing the TUI and CLI use cases. Plugin interoperability and distribution formats remain open decisions; [ADR-0005](../adr/0005-plugin-composition.md) supersedes mandatory gRPC from [ADR-0002](../adr/0002-grpc-plugin-contract.md).
-
-## Technology candidates
-
-The first implementation milestone adopted all four libraries. Their tradeoffs remain relevant as the interfaces grow.
-
-| Candidate | Why it fits | Tradeoff and decision gate |
-| --- | --- | --- |
-| [Bubble Tea](https://github.com/charmbracelet/bubbletea) | Its model/update/view flow drives screen state and terminal events. | The event model is a framework dependency; keep provisioning behavior outside it. |
-| [Bubbles](https://github.com/charmbracelet/bubbles) | Its help component renders context-specific shortcuts. | Add other components only where they reduce code; keep application services independent of component state. |
-| [Lip Gloss](https://github.com/charmbracelet/lipgloss) | It styles and lays out the framed screens. | Test narrow terminal dimensions and limited-color readability. |
-| [Cobra](https://github.com/spf13/cobra) | It parses commands and provides help for the CLI. | Keep command handlers thin and share application use cases with the TUI. |
-
-The concrete versions are pinned in `go.mod`. See the [development guide](../development.md) for current commands and shortcuts.
+The plugin packaging format is unchanged. Plugin manifests are YAML, independent of the retired project YAML format. The [plugin guide](../plugin-registry.md) describes installation and version selection. [Generation planning](../generation-planning.md) describes safety and limitations. [ADR-0011](../adr/0011-one-time-project-generation.md) records the product-direction change from [ADR-0007](../adr/0007-named-project-components.md) and [ADR-0010](../adr/0010-project-plugin-locking.md).

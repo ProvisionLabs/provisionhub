@@ -31,7 +31,7 @@ type output struct {
 
 // Preflight performs read-only destination and freshness checks. Apply repeats
 // them because the filesystem can change between review and publication.
-func Preflight(reviewed planning.Plan, manifest project.Manifest, loaded plugins.Set, destination string) error {
+func Preflight(reviewed planning.Plan, manifest project.Specification, loaded plugins.Set, destination string) error {
 	fresh := planning.BuildWithPlugins(manifest, catalog.Builtin(), loaded)
 	if !fresh.Executable || !reflect.DeepEqual(reviewed, fresh) {
 		return errors.New("generation plan changed or is unavailable; review a new plan before applying")
@@ -89,7 +89,7 @@ func validateFileOperations(plan planning.Plan) error {
 
 // Apply rechecks the plan against the current manifest and plugin snapshot.
 // It stages every rendered file, then publishes through no-overwrite hard links.
-func Apply(reviewed planning.Plan, manifest project.Manifest, loaded plugins.Set, destination string) (Result, error) {
+func Apply(reviewed planning.Plan, manifest project.Specification, loaded plugins.Set, destination string) (Result, error) {
 	if err := Preflight(reviewed, manifest, loaded, destination); err != nil {
 		return Result{}, err
 	}
@@ -216,7 +216,7 @@ func Apply(reviewed planning.Plan, manifest project.Manifest, loaded plugins.Set
 	return Result{Destination: destination, Created: created}, nil
 }
 
-func componentForOperation(manifest project.Manifest, operation planning.Operation) (project.Component, error) {
+func componentForOperation(manifest project.Specification, operation planning.Operation) (project.Component, error) {
 	for _, component := range manifest.CanonicalComponents() {
 		if component.Technology != operation.Technology {
 			continue

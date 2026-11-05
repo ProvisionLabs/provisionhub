@@ -26,7 +26,7 @@ const (
 )
 
 type projectCreatedMsg struct {
-	spec        project.Manifest
+	spec        project.Specification
 	destination string
 	applied     execution.Result
 	err         error
@@ -45,7 +45,7 @@ type wizard struct {
 	focused             int
 	err                 string
 	saving              bool
-	resultSpec          project.Manifest
+	resultSpec          project.Specification
 	resultDestination   string
 	preview             bool
 	confirm             bool

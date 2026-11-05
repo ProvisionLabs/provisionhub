@@ -19,7 +19,7 @@ func testManifest() project.Manifest {
 func TestBuildDescribesUnavailableBackendGeneration(t *testing.T) {
 	manifest := testManifest()
 	plan := Build(manifest, catalog.Builtin())
-	if plan.ProjectName != manifest.Metadata.Name || plan.ManifestVersion != project.APIVersion || plan.Status != StatusPlanned || plan.Executable {
+	if plan.ProjectName != manifest.Metadata.Name || plan.SpecificationVersion != project.APIVersion || plan.Status != StatusPlanned || plan.Executable {
 		t.Fatalf("plan metadata = %+v", plan)
 	}
 	wantTechnologies := []Technology{{ID: "nestjs", Name: "NestJS", Category: catalog.Backend}}

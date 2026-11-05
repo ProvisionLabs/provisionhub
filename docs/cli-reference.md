@@ -2,15 +2,13 @@
 
 | Command | Effect |
 | --- | --- |
-| `project init --name demo --path ./demo --backend nestjs` | Create a legacy manifest and register it locally |
-| `project init --from ./source.yaml --path ./demo` | Copy a validated manifest and register it |
-| `project list` | List local references with manifest-derived names and availability |
-| `project register --file ./demo/provisionhub.yaml` | Register an existing manifest or project directory |
-| `project relocate --id <saved-id> --file ./moved/provisionhub.yaml` | Change only the stored path while retaining the local ID |
-| `project forget --file ./demo/provisionhub.yaml` | Remove only its local reference |
-| `project forget --id <saved-id>` | Forget a moved project using the ID from `project list` |
-| `project plan --file ./demo/provisionhub.yaml` | Read-only generation plan; `--output json` is available |
-| `project apply --file ./demo/provisionhub.yaml` | Reviewed generation; `--yes` authorizes noninteractive use |
-| `project lock --file ./demo/provisionhub.yaml` | Create a plugin lock; `--check`, `--update`, and `--restore` are explicit alternatives |
+| `project plan --name demo --path ./demo --component api:backend:nestjs` | Read-only plan for an in-memory specification |
+| `project plan ... --output json` | Structured plan with operations and diagnostics |
+| `project apply --name demo --path ./demo --component api:backend:nestjs` | Print the plan, preflight output, and ask for literal terminal approval |
+| `project apply ... --yes` | Approve generation in noninteractive automation |
 
-`project init` leaves the created manifest intact if SQLite registration fails and reports the saved path. Register it later after resolving the database error. `project list` and `register` work offline. Plan and apply select installed plugins from the existing lock workflow; neither command requires registration. See [project management](project-management.md) and [project plugin locking](project-plugin-locking.md).
+Repeat `--component name:type:technology` for named instances. Valid types are `backend`, `frontend`, and `database`. Components may repeat a technology but must have unique names. Both commands accept `--plugins <directory>` for local definitions and repeatable `--plugin-version namespace/name@x.y.z` for exact managed versions.
+
+Planning does not write files or create the output directory. A valid but unsupported plan can be printed with exit code 0 and `executable: false`; apply refuses it. Generation uses the reviewed plan, reloads plugin content, and rejects changed inputs or existing targets. The commands do not create a project manifest, lockfile, or saved registration.
+
+`project init`, `list`, `register`, `relocate`, `forget`, and `lock` are retired. Existing project files and SQLite rows are not deleted. See [generation planning](generation-planning.md) and [local persistence](local-persistence.md).

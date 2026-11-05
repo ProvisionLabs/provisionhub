@@ -113,6 +113,14 @@ func TestTUIReviewGeneratesProjectAfterExplicitEnter(t *testing.T) {
 	if data, err := os.ReadFile(output); err != nil || !strings.Contains(string(data), "api") {
 		t.Fatalf("generated file: %v %s", err, data)
 	}
+	for _, name := range []string{"provisionhub.yaml", filepath.Join(".provisionhub", "plugins.lock.yaml")} {
+		if _, err := os.Stat(filepath.Join(destination, name)); !os.IsNotExist(err) {
+			t.Fatalf("unexpected project metadata %s: %v", name, err)
+		}
+	}
+	if _, err := os.Stat(m.localSettings.Path); !os.IsNotExist(err) {
+		t.Fatalf("generation touched application database: %v", err)
+	}
 }
 
 func TestTUIApplyFailureAllowsReviewedRetry(t *testing.T) {

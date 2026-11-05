@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,6 +94,32 @@ func TestProjectFlagsValidateComponents(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Fatalf("%q: %v", tc.component, err)
 		}
+	}
+}
+
+func TestProjectPlanJSONIsDeterministicWithoutManifest(t *testing.T) {
+	destination := filepath.Join(t.TempDir(), "not-created")
+	args := []string{"project", "plan", "--name", "demo", "--path", destination, "--component", "billing:backend:nestjs", "--component", "api:backend:nestjs", "--output", "json"}
+	first, err := executeCLI(args...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := executeCLI(args...)
+	if err != nil || first != second {
+		t.Fatalf("non-deterministic JSON plan: %v", err)
+	}
+	var plan struct {
+		SpecificationVersion string                  `json:"specificationVersion"`
+		Components           []struct{ Name string } `json:"components"`
+	}
+	if err := json.Unmarshal([]byte(first), &plan); err != nil || plan.SpecificationVersion == "" || len(plan.Components) != 2 || plan.Components[0].Name != "api" {
+		t.Fatalf("unexpected JSON plan: %v %s", err, first)
+	}
+	if strings.Contains(first, "manifestVersion") {
+		t.Fatal("retired manifest field remains in JSON")
+	}
+	if _, err := os.Stat(destination); !os.IsNotExist(err) {
+		t.Fatal("JSON planning created output")
 	}
 }
 

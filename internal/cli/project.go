@@ -29,12 +29,12 @@ func (f *specificationFlags) bind(command *cobra.Command) {
 	_ = command.MarkFlagRequired("component")
 }
 
-func (f specificationFlags) build(service application.ProjectService) (project.Manifest, error) {
+func (f specificationFlags) build(service application.ProjectService) (project.Specification, error) {
 	components := make([]project.Component, 0, len(f.components))
 	for _, value := range f.components {
 		parts := strings.Split(value, ":")
 		if len(parts) != 3 {
-			return project.Manifest{}, fmt.Errorf("invalid component %q; expected name:type:technology", value)
+			return project.Specification{}, fmt.Errorf("invalid component %q; expected name:type:technology", value)
 		}
 		components = append(components, project.Component{Name: parts[0], Type: parts[1], Technology: parts[2]})
 	}

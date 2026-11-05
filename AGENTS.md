@@ -8,7 +8,7 @@ This file is the canonical, agent-agnostic source of permanent coding instructio
 
 ## Architecture and navigation
 
-- Use Go and the toolchain/dependency versions in [go.mod](go.mod): Cobra for CLI, Bubble Tea/Bubbles/Lip Gloss for TUI, and YAML for project manifests.
+- Use Go and the toolchain/dependency versions in [go.mod](go.mod): Cobra for CLI, Bubble Tea/Bubbles/Lip Gloss for TUI, and YAML for declarative plugin manifests. Project generation uses an in-memory specification.
 - Keep CLI/TUI as thin presentation adapters into shared application services. Keep validation, composition, and future planning/execution independent of command parsing and terminal rendering. Provider-specific operations belong at plugin/adapter boundaries.
 - Preserve one local process as the default. Do not introduce a required central server, database, broker, distributed workers, Kubernetes, marketplace connection, or gRPC service. Plugin runtime/transport remain deferred decisions, not an invitation to restore the retired server architecture.
 - Navigate via [README](README.md), [project structure](docs/architecture/project-structure.md), and [architecture](docs/architecture/architecture.md). Existing code lives in `cmd/provisionhub`, `internal/cli`, `internal/tui`, `internal/application`, `internal/catalog`, and `internal/project`; tests sit beside it. CI is in [.github/workflows/ci.yml](.github/workflows/ci.yml).
@@ -24,7 +24,7 @@ This file is the canonical, agent-agnostic source of permanent coding instructio
 
 ## Filesystem and infrastructure safety
 
-- Preserve existing files and unrelated work. Maintain the manifest no-overwrite guarantee; do not replace its publication method with an overwriting fallback. Follow the [manifest specification](docs/project-manifest.md), including explicit schema evolution and strict validation.
+- Preserve existing files and unrelated work. Maintain generated-file no-overwrite guarantees; do not replace hard-link publication with an overwriting fallback. Validate in-memory project specifications and plugin definitions strictly.
 - Do not put credentials in manifests, source, examples, logs, or commits. Do not read or expose credential files unless explicitly required and authorized.
 - Keep planning free of write/execute side effects. Do not run generated commands, load untrusted plugins, delete user data, or create/change infrastructure without explicit authorization and a clear target/scope. Future destructive execution requires a reviewable plan and deliberate approval; do not invent rollback or sandbox guarantees.
 
