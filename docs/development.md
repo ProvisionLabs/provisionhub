@@ -66,6 +66,8 @@ go build ./cmd/provisionhub
 
 CI checks formatting, vet, tests, and build on Windows, Linux, and macOS. Tests drive the Bubble Tea model directly, so they do not require an interactive terminal.
 
+CLI and TUI test fixtures pass explicit temporary SQLite paths to their command and model constructors. Package `TestMain` setup also sets `PROVISIONHUB_DATA_DIR` to a disposable directory as a safeguard for any default-path calls in older tests. The real CLI subprocess isolation test overrides `PROVISIONHUB_DATA_DIR`, XDG paths, Windows application-data paths, and home variables in the child process; it checks that a separate sentinel database does not change. Application persistence tests use `t.TempDir()` databases. Production path selection is documented in [local persistence](local-persistence.md). Tests must not register temporary projects through the default user database.
+
 The application layer validates and saves project manifests through the built-in catalog, loads local declarative plugins, and coordinates reviewed file generation. See the [manifest specification](project-manifest.md), [component model](architecture/components.md), [plugin contract](architecture/plugins.md), and [generation planning/execution guide](generation-planning.md). Official NestJS and Next.js plugins are in the separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins); marketplace access, infrastructure provisioning, and remote execution remain future work.
 
 ## Settings and authentication development
