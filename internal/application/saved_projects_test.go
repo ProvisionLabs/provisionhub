@@ -1,6 +1,7 @@
 package application
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -119,5 +120,48 @@ func TestSavedProjectValidationAndCanonicalSymlink(t *testing.T) {
 	views, err := service.List(ctx)
 	if err != nil || len(views) != 1 {
 		t.Fatalf("list after failures: %v %+v", err, views)
+	}
+}
+
+func TestExplicitSavedProjectDatabaseDoesNotTouchSentinel(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	projectService := NewProjectService()
+	sentinel := SavedProjects{DatabasePath: filepath.Join(root, "sentinel", "provisionhub.db"), Projects: projectService}
+	isolated := SavedProjects{DatabasePath: filepath.Join(root, "isolated", "provisionhub.db"), Projects: projectService}
+	legitimate := savedFixture(t, filepath.Join(root, "legitimate"))
+	if _, err := sentinel.Register(ctx, legitimate); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(sentinel.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	temporary := savedFixture(t, filepath.Join(root, "temporary"))
+	if _, err := isolated.Register(ctx, temporary); err != nil {
+		t.Fatal(err)
+	}
+	store, err := localdb.Open(ctx, isolated.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	views, err := isolated.List(ctx)
+	if err != nil || len(views) != 1 || views[0].ManifestError != nil {
+		t.Fatalf("isolated reopen: %+v %v", views, err)
+	}
+	after, err := os.ReadFile(sentinel.DatabasePath)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("sentinel changed: %v", err)
+	}
+	views, err = sentinel.List(ctx)
+	canonical, canonicalErr := CanonicalManifestPath(legitimate)
+	if canonicalErr != nil {
+		t.Fatal(canonicalErr)
+	}
+	if err != nil || len(views) != 1 || views[0].Reference.ManifestPath != canonical {
+		t.Fatalf("sentinel registration changed: %+v %v", views, err)
 	}
 }

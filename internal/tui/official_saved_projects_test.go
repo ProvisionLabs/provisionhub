@@ -19,6 +19,7 @@ func TestOfficialSavedProjectLifecycle(t *testing.T) {
 	}
 	root := t.TempDir()
 	t.Setenv("PROVISIONHUB_DATA_DIR", filepath.Join(root, "data"))
+	savedPath := filepath.Join(root, "data", "provisionhub.db")
 	service, err := application.NewProjectServiceWithPlugins(plugins)
 	if err != nil {
 		t.Fatal(err)
@@ -28,7 +29,7 @@ func TestOfficialSavedProjectLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := registerCreatedProject(service, created.ManifestPath); err != nil {
+	if err := registerCreatedProject(application.SavedProjects{DatabasePath: savedPath, Projects: service}, nil, created.ManifestPath); err != nil {
 		t.Fatal(err)
 	}
 	// Construct a new browser as a process restart would; all state comes from SQLite and files.
@@ -36,7 +37,7 @@ func TestOfficialSavedProjectLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b := newSavedBrowser(restarted)
+	b := newSavedBrowser(application.SavedProjects{DatabasePath: savedPath, Projects: restarted})
 	deliverSaved(&b, b.load())
 	if len(b.views) != 1 || len(b.views[0].Manifest.CanonicalComponents()) != 4 {
 		t.Fatalf("reopen listing: %+v", b.views)

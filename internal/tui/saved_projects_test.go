@@ -46,8 +46,7 @@ func deliverSaved(b *savedBrowser, cmd tea.Cmd) tea.Cmd {
 func TestMyProjectsRegistrationDetailsRelocationAndForget(t *testing.T) {
 	root := t.TempDir()
 	service := application.NewProjectService()
-	b := newSavedBrowser(service)
-	b.saved.DatabasePath = filepath.Join(root, "data.db")
+	b := newSavedBrowser(application.SavedProjects{DatabasePath: filepath.Join(root, "data.db"), Projects: service})
 	manifest := project.Manifest{APIVersion: project.APIVersion, Kind: project.Kind, Metadata: project.Metadata{Name: "demo"}, Spec: project.Spec{Components: []project.Component{{Name: "api", Type: "backend", Technology: "nestjs"}}}}
 	file, err := project.Save(filepath.Join(root, "project"), manifest)
 	if err != nil {
@@ -139,8 +138,7 @@ files:
 	if err != nil {
 		t.Fatal(err)
 	}
-	b := newSavedBrowser(service)
-	b.saved.DatabasePath = filepath.Join(root, "data.db")
+	b := newSavedBrowser(application.SavedProjects{DatabasePath: filepath.Join(root, "data.db"), Projects: service})
 	manifest := project.Manifest{APIVersion: project.APIVersion, Kind: project.Kind, Metadata: project.Metadata{Name: "demo"}, Spec: project.Spec{Backend: &project.TechnologySelection{Technology: "nestjs"}}}
 	file, err := project.Save(filepath.Join(root, "demo"), manifest)
 	if err != nil {
@@ -218,7 +216,7 @@ files:
 }
 
 func TestSavedApplyCannotQuitDuringPublication(t *testing.T) {
-	m := newTestModel()
+	m := newTestModel(t)
 	m.nav.current = openProject
 	m.savedBrowser.state = "applyConfirm"
 	m.savedBrowser.busy = true

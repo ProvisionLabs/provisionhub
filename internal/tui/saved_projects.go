@@ -44,13 +44,12 @@ type savedBrowser struct {
 	err         string
 }
 
-func newSavedBrowser(service application.ProjectService) savedBrowser {
-	saved, err := application.NewSavedProjects(service)
+func newSavedBrowser(saved application.SavedProjects) savedBrowser {
 	input := textinput.New()
 	input.Prompt = ""
 	input.Placeholder = "./project/provisionhub.yaml"
 	input.SetWidth(60)
-	return savedBrowser{service: service, saved: saved, initErr: err, state: "list", input: input}
+	return savedBrowser{service: saved.Projects, saved: saved, state: "list", input: input}
 }
 
 func (b *savedBrowser) load() tea.Cmd {

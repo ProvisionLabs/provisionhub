@@ -110,7 +110,7 @@ func (w *wizard) focusField(index int) tea.Cmd {
 }
 
 // update returns a command and whether the wizard should return to Home.
-func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService) (tea.Cmd, bool) {
+func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService, saved application.SavedProjects, savedErr error) (tea.Cmd, bool) {
 	if w.saving || w.applying {
 		return nil, false
 	}
@@ -152,7 +152,7 @@ func (w *wizard) update(msg tea.KeyPressMsg, service application.ProjectService)
 		return nil, false
 	}
 	if w.step != projectInfoStep {
-		return w.updateComponents(msg, service)
+		return w.updateComponents(msg, service, saved, savedErr)
 	}
 	switch key {
 	case "esc":

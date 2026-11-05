@@ -7,11 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func savedProjects() (application.SavedProjects, error) {
-	return application.NewSavedProjects(application.NewProjectService())
-}
-
-func newProjectListCommand() *cobra.Command {
+func newProjectListCommand(savedProjects func() (application.SavedProjects, error)) *cobra.Command {
 	return &cobra.Command{Use: "list", Short: "List locally saved projects", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		saved, err := savedProjects()
 		if err != nil {
@@ -34,7 +30,7 @@ func newProjectListCommand() *cobra.Command {
 	}}
 }
 
-func newProjectRegisterCommand() *cobra.Command {
+func newProjectRegisterCommand(savedProjects func() (application.SavedProjects, error)) *cobra.Command {
 	var file string
 	command := &cobra.Command{Use: "register", Short: "Register an existing local project", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		saved, err := savedProjects()
@@ -53,7 +49,7 @@ func newProjectRegisterCommand() *cobra.Command {
 	return command
 }
 
-func newProjectForgetCommand() *cobra.Command {
+func newProjectForgetCommand(savedProjects func() (application.SavedProjects, error)) *cobra.Command {
 	var file, id string
 	command := &cobra.Command{Use: "forget", Short: "Forget a local project reference without deleting files", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		if (file == "") == (id == "") {
@@ -81,7 +77,7 @@ func newProjectForgetCommand() *cobra.Command {
 	return command
 }
 
-func newProjectRelocateCommand() *cobra.Command {
+func newProjectRelocateCommand(savedProjects func() (application.SavedProjects, error)) *cobra.Command {
 	var file, id string
 	command := &cobra.Command{Use: "relocate", Short: "Update a saved project's manifest location", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		saved, err := savedProjects()

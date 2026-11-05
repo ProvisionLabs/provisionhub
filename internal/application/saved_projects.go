@@ -38,6 +38,9 @@ func NewSavedProjects(projects ProjectService) (SavedProjects, error) {
 }
 
 func (s SavedProjects) open(ctx context.Context) (*localdb.Store, error) {
+	if !filepath.IsAbs(s.DatabasePath) {
+		return nil, fmt.Errorf("saved projects database path must be absolute")
+	}
 	store, err := localdb.Open(ctx, s.DatabasePath)
 	if err != nil {
 		return nil, fmt.Errorf("saved projects database: %w", err)

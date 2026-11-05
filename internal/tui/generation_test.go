@@ -37,10 +37,15 @@ files:
 	if err := os.WriteFile(filepath.Join(folder, "package.json.tmpl"), []byte(`{"name":"{{componentName}}"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	m, err := NewModelWithPlugins(application.Info(), filepath.Join(base, "plugins"))
+	service, err := application.NewProjectServiceWithPlugins(filepath.Join(base, "plugins"))
 	if err != nil {
 		t.Fatal(err)
 	}
+	databasePath := filepath.Join(base, "data", "provisionhub.db")
+	saved := application.SavedProjects{DatabasePath: databasePath, Projects: service}
+	settings := application.NewLocalSettings()
+	settings.Path = databasePath
+	m := newModelWithPersistence(application.Info(), service, saved, settings)
 	return m, filepath.Join(base, "project with spaces")
 }
 

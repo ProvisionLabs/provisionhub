@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newProjectCommand() *cobra.Command {
+func newProjectCommand(savedProjects func() (application.SavedProjects, error)) *cobra.Command {
 	projectCommand := &cobra.Command{
 		Use:   "project",
 		Short: "Manage local project configurations",
@@ -44,7 +44,7 @@ func newProjectCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			saved, err := application.NewSavedProjects(service)
+			saved, err := savedProjects()
 			if err != nil {
 				return fmt.Errorf("manifest created at %s; registration failed: %w", result.ManifestPath, err)
 			}
@@ -61,6 +61,6 @@ func newProjectCommand() *cobra.Command {
 	initCommand.Flags().StringVar(&input.Frontend, "frontend", "", "Frontend technology ID or none (optional)")
 	initCommand.Flags().StringVar(&input.Database, "database", "", "Database technology ID or none (optional)")
 	initCommand.Flags().StringVar(&source, "from", "", "Existing project manifest for a multi-component configuration")
-	projectCommand.AddCommand(initCommand, newPlanCommand(), newApplyCommand(), newLockCommand(), newProjectListCommand(), newProjectRegisterCommand(), newProjectRelocateCommand(), newProjectForgetCommand())
+	projectCommand.AddCommand(initCommand, newPlanCommand(), newApplyCommand(), newLockCommand(), newProjectListCommand(savedProjects), newProjectRegisterCommand(savedProjects), newProjectRelocateCommand(savedProjects), newProjectForgetCommand(savedProjects))
 	return projectCommand
 }

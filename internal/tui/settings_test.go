@@ -61,7 +61,7 @@ func (f *fakePreferences) Disconnect(context.Context, string) error {
 
 func settingsModel(t *testing.T) (*Model, *fakePreferences) {
 	t.Helper()
-	m := newTestModel()
+	m := newTestModel(t)
 	backend := &fakePreferences{}
 	m.preferences = newPreferences(backend)
 	m.nav.selected = len(homeMenu) - 1
