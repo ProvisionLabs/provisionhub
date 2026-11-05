@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ProvisionLabs/provisionhub/internal/application"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
 )
 
@@ -17,8 +18,12 @@ func TestProjectSavedCommandsAndInitRegistrationFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	file := filepath.Join(output, project.ManifestName)
+	canonicalFile, err := application.CanonicalManifestPath(file)
+	if err != nil {
+		t.Fatal(err)
+	}
 	listed, err := executeCLI("project", "list")
-	if err != nil || !strings.Contains(strings.ToLower(listed), strings.ToLower(file)) || !strings.Contains(listed, "demo") {
+	if err != nil || !strings.Contains(listed, canonicalFile) || !strings.Contains(listed, "demo") {
 		t.Fatalf("list: %s %v", listed, err)
 	}
 	if _, err := executeCLI("project", "register", "--file", file); err == nil || !strings.Contains(err.Error(), "already registered") {
@@ -31,7 +36,7 @@ func TestProjectSavedCommandsAndInitRegistrationFailure(t *testing.T) {
 		t.Fatal("forget deleted manifest", err)
 	}
 	listed, err = executeCLI("project", "list")
-	if err != nil || strings.Contains(strings.ToLower(listed), strings.ToLower(file)) {
+	if err != nil || strings.Contains(listed, canonicalFile) {
 		t.Fatalf("forget list: %s %v", listed, err)
 	}
 	if _, err := executeCLI("project", "register", "--file", output); err != nil {
@@ -49,8 +54,12 @@ func TestProjectSavedCommandsAndInitRegistrationFailure(t *testing.T) {
 	if _, err := executeCLI("project", "relocate", "--id", id, "--file", moved); err != nil {
 		t.Fatal(err)
 	}
+	canonicalMoved, err := application.CanonicalManifestPath(moved)
+	if err != nil {
+		t.Fatal(err)
+	}
 	listed, err = executeCLI("project", "list")
-	if err != nil || !strings.Contains(strings.ToLower(listed), strings.ToLower(moved)) || !strings.HasPrefix(listed, id) {
+	if err != nil || !strings.Contains(listed, canonicalMoved) || !strings.HasPrefix(listed, id) {
 		t.Fatalf("relocated list: %s %v", listed, err)
 	}
 	if _, err := executeCLI("project", "forget", "--id", id); err != nil {

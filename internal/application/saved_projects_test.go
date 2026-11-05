@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/ProvisionLabs/provisionhub/internal/localdb"
@@ -71,7 +70,11 @@ func TestSavedProjectsRestartRelocateForgetAndFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	opened, err = service.Open(ctx, a.ID)
-	if err != nil || opened.Reference.ID != a.ID || !strings.EqualFold(opened.Reference.ManifestPath, moved) {
+	canonicalMoved, canonicalErr := CanonicalManifestPath(moved)
+	if canonicalErr != nil {
+		t.Fatal(canonicalErr)
+	}
+	if err != nil || opened.Reference.ID != a.ID || opened.Reference.ManifestPath != canonicalMoved {
 		t.Fatalf("relocated open: %+v %v", opened, err)
 	}
 	if err := service.Forget(ctx, a.ID); err != nil {
