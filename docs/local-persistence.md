@@ -1,8 +1,10 @@
 # Local application persistence
 
-ProvisionHub stores application preferences and Git account metadata in SQLite.
-Project definitions remain portable `provisionhub.yaml` files. Neither the
-database nor an authenticated account is required by CLI planning or generation.
+ProvisionHub stores application preferences, Git account metadata, and local
+saved-project references in SQLite. Project definitions remain portable
+`provisionhub.yaml` files; exact plugin selections stay in each project's
+`.provisionhub/plugins.lock.yaml`. Neither the database nor an authenticated
+account is required by CLI planning or generation.
 The TUI optionally reads a saved workspace preference when creating a project;
 read failures leave manual destination entry available.
 
@@ -26,7 +28,7 @@ not a symlink. It is not encrypted and contains non-secret paths and account nam
 `database/sql` with `modernc.org/sqlite`, without CGO or an ORM. Application services
 own validation and account/credential coordination; CLI and TUI do not issue SQL.
 
-Storage opens only for settings/account operations or an optional existing-workspace
+Storage opens for settings/account/saved-project operations or an optional existing-workspace
 preference read. Each facade operation closes its connection on return. There is
 one pooled connection per store and a 5-second busy timeout on each connection.
 SQLite's default rollback journal is retained: WAL is not automatically suitable
@@ -59,12 +61,25 @@ CREATE TABLE git_accounts (
   updated_at DATETIME NOT NULL,
   UNIQUE(provider, instance_url, subject_id)
 );
+
+-- Version 6 (versions 3-5 add installed plugin metadata)
+CREATE TABLE saved_projects (
+  id TEXT PRIMARY KEY,
+  manifest_path TEXT NOT NULL UNIQUE,
+  registered_at TEXT NOT NULL,
+  last_opened_at TEXT
+);
 ```
 
 Stable provider subject IDs and instance URLs distinguish multiple accounts,
 including identities whose display names change. The credential reference is a
-random native-vault entry name, not a token. There are no project/history tables.
-New domains can append migrations without changing the project manifest schema.
+random native-vault entry name, not a token. The saved-project table contains
+only local references, not project names, components, connections, or locked
+plugins. Paths are absolute, cleaned, and resolved through existing symlinks;
+Windows paths are case-normalized. Each project gets a random stable local ID.
+Listing is deterministic by registration time and ID. Missing or invalid
+manifests remain registered until explicitly relocated or forgotten. See
+[saved project management](project-management.md).
 
 ## Failures and recovery
 

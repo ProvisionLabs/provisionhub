@@ -28,7 +28,7 @@ go build ./cmd/provisionhub
 
 ## Current interface
 
-The home screen lists Create Project, Open Existing Project, Plugin Marketplace, and Settings. Create Project collects project information, then opens the named-component list. Add, edit, or remove components before review. Review offers an optional, scrollable generation-plan preview before saving. Settings provides persistent General preferences and Git Providers; only Open Existing Project and Plugin Marketplace remain placeholders. Legacy manifests and CLI flags remain supported outside the TUI.
+The home screen lists Create Project, My Projects, Plugins, and Settings. Create Project collects project information, then opens the named-component list. Add, edit, or remove components before review. Review offers an optional, scrollable generation-plan preview before saving. My Projects registers and reopens manifests, shows current component and lock details, and offers confirmed apply, relocation, and forgetting. Settings provides persistent General preferences and Git Providers; Plugins manages local installations. Legacy manifests and CLI flags remain supported outside the TUI. See the [TUI guide](tui.md) for saved-project controls.
 
 | Key | Action |
 | --- | --- |

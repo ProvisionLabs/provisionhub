@@ -10,7 +10,7 @@ Plugins are intended to provide templates, technology integrations, and provisio
 
 Running `provisionhub` opens a TUI with a **Create Project** wizard for multiple named components. It collects a name and destination, lets you add components, previews a generation plan, and saves `provisionhub.yaml` only on explicit confirmation. The CLI can still create either manifest format without a terminal, list built-in technologies, and preview a saved manifest as text or JSON. `version` and `--help` remain available.
 
-Settings persists local workspace/provider preferences in SQLite and manages optional GitHub account connections using device authorization and the OS credential vault. **Plugins** discovers, installs, lists, updates and removes official declarative packages through a static registry and versioned GitHub Release assets. Open Existing Project remains explanatory. The built-in catalog defines valid **configuration choices**; a matching healthy plugin is required for generation. Official NestJS and Next.js generators live in the separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins). Infrastructure provisioning and CI/CD generation remain future work.
+Settings persists local workspace/provider preferences in SQLite and manages optional GitHub account connections using device authorization and the OS credential vault. **Plugins** discovers, installs, lists, updates and removes official declarative packages through a static registry and versioned GitHub Release assets. **My Projects** registers, reopens, inspects, relocates, and forgets local project references. The built-in catalog defines valid **configuration choices**; a matching healthy plugin is required for generation. Official NestJS and Next.js generators live in the separate [official plugins repository](https://github.com/ProvisionLabs/provisionhub-official-plugins). Infrastructure provisioning and CI/CD generation remain future work.
 
 ## Build and run
 
@@ -87,6 +87,18 @@ See the [manifest specification](docs/project-manifest.md) for the schema, built
 
 For development and testing commands, see the [development guide](docs/development.md).
 
+### Reopen and manage projects
+
+Creating a manifest registers its location locally. Home → **My Projects** reads each current manifest, so names and components remain portable project data. Press `r` to register an existing project, Enter to open details, `m` to relocate a moved reference, or `f` to confirm **Forget Project**. Forgetting removes only the SQLite reference. Details offer `p` for a read-only plan, `g` then `y` to approve generation, and `l` for plugin lock validation, restoration, and confirmed updates. Opening never generates files.
+
+```sh
+provisionhub project list
+provisionhub project register --file ./my-application/provisionhub.yaml
+provisionhub project forget --file ./my-application/provisionhub.yaml
+```
+
+The manifest and plugin lockfile remain authoritative; SQLite holds only local IDs, paths, and timestamps. Local listing, opening, and planning work offline. See [saved project management](docs/project-management.md), [TUI controls](docs/tui.md), and the [project CLI reference](docs/cli-reference.md).
+
 ### Preview a generation plan
 
 For reproducible projects, run `provisionhub project lock --file ./my-application/provisionhub.yaml` after installing generators. The lock at `.provisionhub/plugins.lock.yaml` pins exact plugin content. Use `project lock --check` to verify it, `--update` for an intentional version change, and `--restore` to install missing exact official releases. The Create Project result screen offers `l` to create a lock. See [project plugin locking](docs/project-plugin-locking.md).
@@ -153,7 +165,7 @@ The plan lists `component/api`, `component/billing`, `component/web`, and `compo
 
 ## Direction
 
-Named-component composition, local declarative plugin loading, concrete file plans, and separately approved local file generation are implemented. Official NestJS and Next.js templates in `provisionhub-official-plugins` have been validated locally through four-component generation and npm builds, plus legacy HTTP requests. Connection execution, infrastructure provisioning, and opening existing projects through the TUI remain future work.
+Named-component composition, saved project management, local declarative plugin loading, concrete file plans, and separately approved local file generation are implemented. Official NestJS and Next.js templates in `provisionhub-official-plugins` have been validated locally through four-component generation and npm builds, plus legacy HTTP requests. Connection execution and infrastructure provisioning remain future work.
 
 ProvisionHub aims to solve repeated project setup, incompatible technology choices, and fragmented integration work. For example, a future Spring Boot + PostgreSQL + Docker + GitHub Actions selection should produce one coherent project configuration, rather than four unrelated templates.
 
@@ -162,6 +174,9 @@ ProvisionHub aims to solve repeated project setup, incompatible technology choic
 - [Application settings](docs/settings.md)
 - [Git provider authentication and OAuth setup](docs/git-providers.md)
 - [Local SQLite persistence](docs/local-persistence.md)
+- [Saved project management](docs/project-management.md)
+- [TUI controls](docs/tui.md)
+- [Project CLI reference](docs/cli-reference.md)
 - [Settings/authentication validation](docs/settings-validation.md)
 
 - [Product overview](docs/overview.md)

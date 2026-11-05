@@ -8,7 +8,7 @@ The current built-in catalog offers NestJS, Spring Boot, or Go backends; Next.js
 
 ## Product principles
 
-- **TUI-first:** The terminal interface is the primary guided experience. It configures projects, previews plans, and can confirm local file generation; opening projects, configuring providers, browsing plugins, and progress reporting remain future work.
+- **TUI-first:** The terminal interface is the primary guided experience. It configures and reopens projects, previews plans, manages plugin locks, and confirms local file generation.
 - **CLI-compatible:** Non-interactive commands should expose the same use cases for scripts and CI/CD. UI state must not contain provisioning rules.
 - **Local-first:** The default workflow runs on the developer's machine without an always-on service or cluster. Remote execution may be offered later as an optional capability.
 - **Plugin-driven:** Independently developed plugins may supply templates, framework and service integrations, infrastructure providers, and operations. Official NestJS and Next.js generators live in the separate `provisionhub-official-plugins` repository.
@@ -23,7 +23,7 @@ The current built-in catalog offers NestJS, Spring Boot, or Go backends; Next.js
 5. Execute locally through plugins and external tools, with progress and actionable errors.
 6. Save enough project state to inspect and modify the project later.
 
-Configuration and plan review are implemented: the TUI creates a validated [project manifest](project-manifest.md) with [named components](architecture/components.md), while the CLI also accepts legacy flags and manifests. `project plan --file` previews a saved manifest, and the TUI offers an optional preview before saving. Local plugins can contribute concrete file operations, and `project apply` or TUI confirmation can generate them. [Generation planning](generation-planning.md) remains side-effect-free. Opening existing projects in the TUI, connection execution, and infrastructure execution remain future work. A constructed plan is executable only if every selected capability is supported.
+Configuration and plan review are implemented: the TUI creates a validated [project manifest](project-manifest.md) with [named components](architecture/components.md), while the CLI also accepts legacy flags and manifests. [Saved project management](project-management.md) registers and reopens local manifests without copying project data into SQLite. `project plan --file` and the TUI preview saved or unsaved configurations. Local plugins can contribute concrete file operations, and `project apply` or TUI confirmation can generate them. [Generation planning](generation-planning.md) remains side-effect-free. Connection execution and infrastructure execution remain future work. A constructed plan is executable only if every selected capability is supported.
 
 ## Scope
 
