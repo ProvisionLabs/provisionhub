@@ -39,10 +39,6 @@ type workspacePreferenceMsg struct {
 }
 
 var secondaryScreens = map[screen]screenText{
-	openProject: {
-		title:       "Open Existing Project",
-		description: "Opening and editing local projects is planned. No manifests are read yet.",
-	},
 	pluginMarketplace: {
 		title:       "Plugins",
 		description: "Discover official plugins and manage local installations.",
@@ -66,12 +62,14 @@ type Model struct {
 	preferences      preferences
 	workspaceRequest uint64
 	pluginBrowser    pluginBrowser
+	savedBrowser     savedBrowser
 }
 
 func NewModel(info application.AppInfo) *Model {
 	h := help.New()
 	h.SetWidth(48)
-	return &Model{info: info, service: application.NewProjectService(), help: h, width: 80, height: 24, preferences: newPreferences(application.NewLocalSettings()), pluginBrowser: newPluginBrowser(application.PluginManager{})}
+	service := application.NewProjectService()
+	return &Model{info: info, service: service, help: h, width: 80, height: 24, preferences: newPreferences(application.NewLocalSettings()), pluginBrowser: newPluginBrowser(application.PluginManager{}), savedBrowser: newSavedBrowser(service)}
 }
 
 // NewModelWithPlugins loads an explicit local plugin directory for this session.
@@ -82,12 +80,16 @@ func NewModelWithPlugins(info application.AppInfo, directory string) (*Model, er
 	}
 	m := NewModel(info)
 	m.service = service
+	m.savedBrowser = newSavedBrowser(service)
 	return m, nil
 }
 
 func (m *Model) Init() tea.Cmd { return nil }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if _, ok := msg.(savedResultMsg); ok {
+		return m, m.savedBrowser.receive(msg.(savedResultMsg))
+	}
 	if _, ok := msg.(pluginResultMsg); ok {
 		cmd, _ := m.pluginBrowser.update(msg)
 		return m, cmd
@@ -131,6 +133,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.nav.current == createProject && m.wizard.applying {
 			return m, nil
 		}
+		if m.nav.current == openProject && m.savedBrowser.busy && (m.savedBrowser.state == "applyConfirm" || m.savedBrowser.state == "lockConfirm" || m.savedBrowser.state == "lock") {
+			return m, nil
+		}
 		if msg.String() == "ctrl+c" {
 			m.preferences.stop()
 			m.pluginBrowser.stop()
@@ -147,6 +152,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if err == nil {
 					m.service = service
 				}
+				m.nav.back()
+			}
+			return m, cmd
+		}
+		if m.nav.current == openProject {
+			cmd, back := m.savedBrowser.update(msg)
+			if back {
 				m.nav.back()
 			}
 			return m, cmd
@@ -185,6 +197,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.nav.current == pluginMarketplace {
 				return m, m.pluginBrowser.start("load", "", "")
 			}
+			if m.nav.current == openProject {
+				m.savedBrowser = newSavedBrowser(m.service)
+				return m, m.savedBrowser.load()
+			}
 			if m.nav.current == settings {
 				return m, m.preferences.load()
 			}
@@ -213,6 +229,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) View() tea.View {
 	width, height := max(1, m.width), max(1, m.height)
+	if m.nav.current == openProject {
+		view := tea.NewView(m.savedBrowser.view(width, height))
+		view.AltScreen = true
+		return view
+	}
 	if m.nav.current == pluginMarketplace {
 		view := tea.NewView(m.pluginBrowser.view(width, height))
 		view.AltScreen = true

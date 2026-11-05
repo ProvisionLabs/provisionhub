@@ -1,11 +1,11 @@
 # ProvisionHub development context
 
-Checked against the source on November 4, 2026. Repository code and tests take precedence over this summary. Read [AGENTS.md](../AGENTS.md) and inspect current Git state before work.
+Checked against the source on November 5, 2026. Repository code and tests take precedence over this summary. Read [AGENTS.md](../AGENTS.md) and inspect current Git state before work.
 
 Plugin Registry v1 and Plugin Manager are implemented. [ADR-0009](adr/0009-static-plugin-registry.md)
 records namespaced distribution identity, immutable artifacts and trust boundaries.
 The [registry guide](plugin-registry.md) documents schema, packaging, lifecycle,
-SQLite, CLI/TUI, recovery, offline use and the project-locking limitation.
+SQLite, CLI/TUI, recovery, and offline use.
 Official NestJS and Next.js 1.1.0 packages are published through the official
 repository's manually dispatched release workflow.
 
@@ -25,9 +25,9 @@ The Go repository owns catalog definitions, manifest parsing, application servic
 | [internal/registry](../internal/registry/) | Strict static index, stable release resolution, HTTPS source, explicit stale cache and immutable history |
 | [internal/planning](../internal/planning/) | Pure deterministic component-owned operations, graph ordering, diagnostics, executability |
 | [internal/execution](../internal/execution/) | Reviewed, root-confined staging and no-overwrite file publication |
-| [internal/application](../internal/application/) | Shared validation, project creation, plan freshness, and apply coordination |
+| [internal/application](../internal/application/) | Shared validation, saved-project discovery, project creation, lock preview, plan freshness, and apply coordination |
 | [internal/cli](../internal/cli/) | Cobra commands, text/JSON plans, terminal or `--yes` approval |
-| [internal/tui](../internal/tui/) | Bubble Tea navigation, named-component wizard, preview, explicit generation |
+| [internal/tui](../internal/tui/) | Bubble Tea navigation, named-component wizard, My Projects, preview, explicit generation |
 | [internal/settings](../internal/settings/) | Typed workspace/provider preferences and validation |
 | [internal/localdb](../internal/localdb/) | Lazy database/sql SQLite repositories and transactional versioned migrations |
 | [internal/credentials](../internal/credentials/) | Native OS credential-vault interface and secret redaction |
@@ -36,6 +36,8 @@ The Go repository owns catalog definitions, manifest parsing, application servic
 ## User behavior
 
 `provisionhub project init --name demo --path ./demo --backend nestjs` remains the simple legacy CLI flow. A complex project can use `project init --from ./source.yaml --path ./demo`. Both formats use `project plan --file ... --plugins ...` and `project apply --file ... --plugins ...`; apply requires explicit approval. The TUI creates named-component manifests directly: after project information, `a`, `e`, and `d` add, edit, and remove instances. Review `p` shows the read-only plan; Enter on **Generate Project** creates the manifest and generated files. The result screen offers a fresh preview and confirmed retry if generation fails after the manifest is saved.
+
+Initialization registers the created manifest in SQLite after it is saved. `project list/register/forget` and Home → **My Projects** manage local references. SQLite migration 6 stores only IDs, canonical paths, and timestamps; manifest names/components/connections and lock versions are always read from disk. Moved or invalid projects remain listed for relocation or forgetting. Project details offer read-only plan review, confirmed apply, and plugin lock validation, creation, update preview, and explicit official artifact restoration. Local discovery and opening work offline. See [saved project management](project-management.md), [TUI controls](tui.md), and [CLI reference](cli-reference.md).
 
 `plugin list/search/info/install/update/updates/remove` and Home → Plugins share
 `application.PluginManager`. List and generation remain offline. Discovery is

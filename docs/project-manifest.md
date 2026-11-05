@@ -2,6 +2,8 @@
 
 The manifest describes requested technologies. Exact plugin versions and checksums belong in the optional [project plugin lock](project-plugin-locking.md), stored at `.provisionhub/plugins.lock.yaml` beside the manifest. Component repository layout does not affect the lock path.
 
+Local **My Projects** registration stores only a path and timestamps in SQLite. The manifest remains authoritative for the project name, components, technologies, and connections. See [saved project management](project-management.md).
+
 The manifest records desired project composition. Its directory is the generation destination; the destination path is not stored in YAML. The current API version remains `provisionhub.dev/v1alpha1` because named components are an additive format with explicit legacy compatibility. See [ADR-0007](adr/0007-named-project-components.md).
 
 ## Named components

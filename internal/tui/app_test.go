@@ -25,7 +25,7 @@ func TestInitialView(t *testing.T) {
 	if !view.AltScreen {
 		t.Fatal("TUI must use the alternate screen")
 	}
-	for _, part := range []string{"PROVISIONHUB", application.Info().Tagline, "› Create Project", "Open Existing Project", "Plugins", "Settings"} {
+	for _, part := range []string{"PROVISIONHUB", application.Info().Tagline, "› Create Project", "My Projects", "Plugins", "Settings"} {
 		if !strings.Contains(view.Content, part) {
 			t.Errorf("initial view missing %q", part)
 		}

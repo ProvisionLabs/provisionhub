@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -170,12 +172,14 @@ func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.Proje
 				plan := w.plan
 				return func() tea.Msg {
 					created, applied, err := service.CreateAndApplyComponentProject(name, destination, components, plan)
+					err = errors.Join(err, registerCreatedProject(service, created.ManifestPath))
 					return projectCreatedMsg{result: created, applied: applied, err: err}
 				}, false
 			}
 			w.saving = true
 			return func() tea.Msg {
 				result, err := service.CreateComponentProject(name, destination, components)
+				err = errors.Join(err, registerCreatedProject(service, result.ManifestPath))
 				return projectCreatedMsg{result: result, err: err}
 			}, false
 		}
@@ -198,6 +202,20 @@ func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.Proje
 		}
 	}
 	return nil, false
+}
+
+func registerCreatedProject(service application.ProjectService, path string) error {
+	if path == "" {
+		return nil
+	}
+	saved, err := application.NewSavedProjects(service)
+	if err != nil {
+		return fmt.Errorf("manifest created at %s; registration failed: %w", path, err)
+	}
+	if _, err := saved.Register(context.Background(), path); err != nil {
+		return fmt.Errorf("manifest created at %s; registration failed: %w", path, err)
+	}
+	return nil
 }
 
 func (w *wizard) componentLines(service application.ProjectService, contentWidth int) []string {

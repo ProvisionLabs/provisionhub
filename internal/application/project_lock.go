@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/ProvisionLabs/provisionhub/internal/plugins"
@@ -32,6 +33,60 @@ func (s ProjectService) LockProject(file string, check, update bool) (projectloc
 	if found && !update {
 		return existing, fmt.Errorf("lockfile exists; use --check or --update")
 	}
+	lock, err := s.resolveProjectLock(manifest)
+	if err != nil {
+		return lock, err
+	}
+	if err := projectlock.Save(file, lock, update); err != nil {
+		return lock, err
+	}
+	return lock, nil
+}
+
+type ProjectLockPreview struct {
+	Existing projectlock.Lock
+	Found    bool
+	Proposed projectlock.Lock
+}
+
+// PreviewProjectLock resolves installed plugins without changing project files.
+func (s ProjectService) PreviewProjectLock(file string) (ProjectLockPreview, error) {
+	manifest, err := s.LoadProject(file)
+	if err != nil {
+		return ProjectLockPreview{}, err
+	}
+	existing, found, err := projectlock.Load(file)
+	if err != nil {
+		return ProjectLockPreview{}, err
+	}
+	proposed, err := s.resolveProjectLock(manifest)
+	return ProjectLockPreview{Existing: existing, Found: found, Proposed: proposed}, err
+}
+
+// ApplyProjectLockPreview checks both old and proposed states again after approval.
+func (s ProjectService) ApplyProjectLockPreview(file string, preview ProjectLockPreview) error {
+	current, found, err := projectlock.Load(file)
+	if err != nil {
+		return err
+	}
+	if found != preview.Found || !reflect.DeepEqual(current, preview.Existing) {
+		return fmt.Errorf("project lock changed since preview; review it again")
+	}
+	manifest, err := s.LoadProject(file)
+	if err != nil {
+		return err
+	}
+	proposed, err := s.resolveProjectLock(manifest)
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(proposed, preview.Proposed) {
+		return fmt.Errorf("proposed plugin resolution changed since preview; review it again")
+	}
+	return projectlock.Save(file, proposed, found)
+}
+
+func (s ProjectService) resolveProjectLock(manifest project.Manifest) (projectlock.Lock, error) {
 	loaded, err := s.loadPlugins()
 	if err != nil {
 		return projectlock.Lock{}, err
@@ -77,9 +132,6 @@ func (s ProjectService) LockProject(file string, check, update bool) (projectloc
 			entry.Artifact = release.Artifact
 		}
 		lock.Plugins = append(lock.Plugins, entry)
-	}
-	if err := projectlock.Save(file, lock, update); err != nil {
-		return lock, err
 	}
 	return lock, nil
 }
