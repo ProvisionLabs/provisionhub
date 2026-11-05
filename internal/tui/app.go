@@ -145,7 +145,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.nav.current == createProject && m.wizard.applying {
 			return m, nil
 		}
-		if m.nav.current == openProject && m.savedBrowser.busy && (m.savedBrowser.state == "applyConfirm" || m.savedBrowser.state == "lockConfirm" || m.savedBrowser.state == "lock") {
+		if m.nav.current == openProject && m.savedBrowser.busy && (m.savedBrowser.state == "applyConfirm" || m.savedBrowser.state == "lockConfirm" || m.savedBrowser.state == "lock" || m.savedBrowser.state == "cleanupConfirm") {
 			return m, nil
 		}
 		if msg.String() == "ctrl+c" {

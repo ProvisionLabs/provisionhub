@@ -3,13 +3,16 @@ package tui
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/ProvisionLabs/provisionhub/internal/application"
+	"github.com/ProvisionLabs/provisionhub/internal/localdb"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
 	"github.com/ProvisionLabs/provisionhub/internal/projectlock"
 )
@@ -223,5 +226,129 @@ func TestSavedApplyCannotQuitDuringPublication(t *testing.T) {
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	if cmd != nil || m.nav.current != openProject {
 		t.Fatal("quit interrupted saved project apply")
+	}
+}
+
+func TestUnavailableCleanupReviewCancelSelectionAndRendering(t *testing.T) {
+	root := t.TempDir()
+	service := application.NewProjectService()
+	b := newSavedBrowser(application.SavedProjects{DatabasePath: filepath.Join(root, "data.db"), Projects: service})
+	manifest := project.Manifest{APIVersion: project.APIVersion, Kind: project.Kind, Metadata: project.Metadata{Name: "available"}, Spec: project.Spec{Backend: &project.TechnologySelection{Technology: "nestjs"}}}
+	files := []string{}
+	ids := []string{}
+	for _, name := range []string{"available", "first temporary project with spaces", "second temporary project with spaces"} {
+		file, err := project.Save(filepath.Join(root, name), manifest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ref, err := b.saved.Register(context.Background(), file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, file)
+		ids = append(ids, ref.ID)
+	}
+	firstMoved := filepath.Join(root, "first moved")
+	secondMoved := filepath.Join(root, "second moved")
+	if err := os.Rename(filepath.Dir(files[1]), firstMoved); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Dir(files[2]), secondMoved); err != nil {
+		t.Fatal(err)
+	}
+	deliverSaved(&b, b.load())
+	for _, size := range [][2]int{{80, 20}, {54, 10}, {24, 6}, {5, 3}, {1, 1}} {
+		view := b.view(size[0], size[1])
+		for _, line := range strings.Split(view, "\n") {
+			if lipgloss.Width(line) > size[0] {
+				t.Fatalf("list overflow %v: %q", size, line)
+			}
+		}
+		if strings.Contains(view, "read manifest") {
+			t.Fatal("long error leaked into list")
+		}
+	}
+	if !strings.Contains(b.view(80, 20), "Unavailable") || !strings.Contains(b.view(80, 20), "Available") {
+		t.Fatal("mixed states missing")
+	}
+	deliverSaved(&b, savedKey(&b, "c"))
+	if b.state != "cleanup" || len(b.candidates) != 2 || len(b.selectedCleanupIDs()) != 0 {
+		t.Fatalf("preview: %s %+v", b.state, b.candidates)
+	}
+	savedKey(&b, "enter")
+	if b.state != "cleanup" {
+		t.Fatal("empty selection confirmed")
+	}
+	savedKey(&b, "a")
+	if len(b.selectedCleanupIDs()) != 2 {
+		t.Fatal("select all missed a candidate")
+	}
+	savedKey(&b, "x")
+	if len(b.selectedCleanupIDs()) != 0 {
+		t.Fatal("clear selection failed")
+	}
+	savedKey(&b, " ")
+	if len(b.selectedCleanupIDs()) != 1 {
+		t.Fatal("space did not select candidate")
+	}
+	savedKey(&b, "enter")
+	if b.state != "cleanupConfirm" {
+		t.Fatal("confirmation missing")
+	}
+	savedKey(&b, "n")
+	if len(b.views) != 3 {
+		t.Fatal("cancelled cleanup removed records")
+	}
+	savedKey(&b, "enter")
+	deliverSaved(&b, deliverSaved(&b, savedKey(&b, "y")))
+	views, err := b.saved.List(context.Background())
+	if err != nil || len(views) != 2 {
+		t.Fatalf("selective cleanup: %+v %v", views, err)
+	}
+	if _, err := os.Stat(filepath.Join(firstMoved, project.ManifestName)); err != nil {
+		t.Fatalf("cleanup deleted files: %v", err)
+	}
+	if _, err := b.saved.Open(context.Background(), ids[0]); err != nil {
+		t.Fatalf("available project removed: %v", err)
+	}
+	if err := b.saved.Relocate(context.Background(), ids[2], secondMoved); err != nil {
+		t.Fatal(err)
+	}
+	deliverSaved(&b, b.load())
+	if len(b.views) != 2 || b.views[1].ManifestError != nil {
+		t.Fatalf("remaining project not recoverable: %+v", b.views)
+	}
+	deliverSaved(&b, savedKey(&b, "c"))
+	if len(b.candidates) != 0 || !strings.Contains(b.view(80, 20), "No unavailable projects") {
+		t.Fatal("available projects offered for cleanup")
+	}
+	savedKey(&b, "esc")
+	if b.state != "list" {
+		t.Fatal("cleanup back navigation failed")
+	}
+	longWindows := application.SavedProjectView{Reference: localdb.SavedProject{ManifestPath: `C:\Users\Example\AppData\Local\Temp\1\Test Project With Spaces\001\new project\provisionhub.yaml`}, ManifestError: errors.New(strings.Repeat("permission denied: ", 30))}
+	b.views = append(b.views, longWindows)
+	if strings.Contains(b.view(80, 20), "permission denied") {
+		t.Fatal("raw Windows error rendered in list")
+	}
+	for _, line := range strings.Split(b.view(24, 7), "\n") {
+		if lipgloss.Width(line) > 24 {
+			t.Fatalf("narrow Windows row overflow: %q", line)
+		}
+	}
+	b.current = longWindows
+	b.state = "details"
+	if !strings.Contains(b.view(80, 20), "Error:") || !strings.Contains(b.view(80, 20), "Manifest:") {
+		t.Fatal("detailed unavailable diagnostics missing")
+	}
+	preview := b
+	preview.state = "cleanupConfirm"
+	preview.candidates = make([]application.SavedProjectView, 30)
+	for i := range preview.candidates {
+		preview.candidates[i] = longWindows
+	}
+	preview.cleanupSelected = map[string]bool{}
+	if !strings.Contains(preview.view(60, 8), "y confirm") {
+		t.Fatalf("cleanup confirmation scrolled out of view (error=%q): %q", preview.err, preview.view(60, 8))
 	}
 }
