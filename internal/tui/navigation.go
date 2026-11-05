@@ -17,7 +17,7 @@ type menuItem struct {
 
 var homeMenu = []menuItem{
 	{label: "Create Project", screen: createProject},
-	{label: "Open Existing Project", screen: openProject},
+	{label: "My Projects", screen: openProject},
 	{label: "Plugins", screen: pluginMarketplace},
 	{label: "Settings", screen: settings},
 }

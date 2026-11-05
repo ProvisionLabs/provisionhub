@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -71,7 +72,11 @@ func CanonicalManifestPath(path string) (string, error) {
 	if !info.Mode().IsRegular() {
 		return "", fmt.Errorf("manifest %q must be a regular file", resolved)
 	}
-	return filepath.Clean(resolved), nil
+	resolved = filepath.Clean(resolved)
+	if runtime.GOOS == "windows" {
+		resolved = strings.ToLower(resolved)
+	}
+	return resolved, nil
 }
 
 func (s SavedProjects) Register(ctx context.Context, path string) (localdb.SavedProject, error) {
@@ -138,9 +143,11 @@ func (s SavedProjects) Open(ctx context.Context, id string) (SavedProjectView, e
 	if view.ManifestError != nil {
 		return view, view.ManifestError
 	}
-	if err := store.MarkSavedProjectOpened(ctx, id, time.Now().UTC()); err != nil {
+	opened := time.Now().UTC()
+	if err := store.MarkSavedProjectOpened(ctx, id, opened); err != nil {
 		return view, err
 	}
+	view.Reference.LastOpenedAt = &opened
 	return view, nil
 }
 

@@ -143,3 +143,31 @@ func TestReopenDoesNotWriteAndInvalidValuesCanBeRepaired(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestSavedProjectMigrationFromVersionFive(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "app.db")
+	store, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.Exec("DROP TABLE saved_projects"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.Exec("PRAGMA user_version=5"); err != nil {
+		t.Fatal(err)
+	}
+	store.Close()
+	store, err = Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := store.ListSavedProjects(ctx); err != nil {
+		t.Fatalf("version five migration: %v", err)
+	}
+	var version int
+	if err := store.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != len(migrations) {
+		t.Fatalf("schema version %d: %v", version, err)
+	}
+}
