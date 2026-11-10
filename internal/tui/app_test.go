@@ -26,6 +26,10 @@ func press(m *Model, code rune, text string) tea.Cmd {
 		m.Update(cmd())
 		return nil
 	}
+	if cmd != nil && m.wizard.connectionRequest != nil {
+		m.Update(cmd())
+		return nil
+	}
 	return cmd
 }
 
