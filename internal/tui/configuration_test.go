@@ -171,4 +171,18 @@ func TestWizardConfigurationLoadingCancellationAndOptionalFields(t *testing.T) {
 	if w.step != componentListStep || len(w.components[0].Configuration) != 1 {
 		t.Fatal(w.components)
 	}
+	// Editing after a plugin schema change must not silently discard unknown keys.
+	w.configurationDraft = w.components[0]
+	w.configurationDraft.Configuration["removed"] = true
+	w.step = componentConfigurationStep
+	w.configurationRequest = request
+	w.configurationLoaded(configurationLoadedMsg{request: request, schema: schema})
+	if _, err := w.configurationValues(); err == nil || !strings.Contains(err.Error(), "unknown key") {
+		t.Fatal(err)
+	}
+	w.configurationRequest = request
+	w.configurationLoaded(configurationLoadedMsg{request: request})
+	if w.step != componentNameStep || !strings.Contains(w.err, "unknown key") {
+		t.Fatal(w.err)
+	}
 }

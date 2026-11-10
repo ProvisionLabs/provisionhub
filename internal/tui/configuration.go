@@ -38,7 +38,7 @@ func (w *wizard) beginConfiguration(component project.Component, service applica
 }
 
 func (w *wizard) configurationLoaded(msg configurationLoadedMsg) tea.Cmd {
-	if w.step != componentConfigurationStep || msg.request != w.configurationRequest {
+	if msg.request == nil || w.step != componentConfigurationStep || msg.request != w.configurationRequest {
 		return nil
 	}
 	w.configurationRequest = nil
@@ -65,7 +65,13 @@ func (w *wizard) configurationLoaded(msg configurationLoadedMsg) tea.Cmd {
 		}
 	}
 	if len(w.configurationKeys) == 0 {
-		w.saveConfiguredComponent(nil)
+		values, err := configuration.Resolve(msg.schema, w.configurationDraft.Configuration, w.configurationDraft.Name)
+		if err != nil {
+			w.err = err.Error()
+			w.step = componentNameStep
+			return w.componentName.Focus()
+		}
+		w.saveConfiguredComponent(values)
 		return nil
 	}
 	return w.focusConfiguration()
@@ -99,9 +105,13 @@ func (w *wizard) saveConfiguredComponent(values configuration.Values) {
 }
 
 func (w *wizard) configurationValues() (configuration.Values, error) {
-	values := configuration.Values{}
+	values := maps.Clone(w.configurationDraft.Configuration)
+	if values == nil {
+		values = configuration.Values{}
+	}
 	for _, key := range w.configurationKeys {
 		if !w.configurationPresent[key] {
+			delete(values, key)
 			continue
 		}
 		v, err := w.configurationSchema.Properties[key].Parse(w.configurationRaw[key])
@@ -156,6 +166,9 @@ func (w *wizard) updateConfiguration(msg tea.KeyPressMsg) tea.Cmd {
 		var cmd tea.Cmd
 		w.configurationInput, cmd = w.configurationInput.Update(msg)
 		w.configurationRaw[key] = w.configurationInput.Value()
+		if msg.String() == "space" {
+			w.configurationPresent[key] = true
+		}
 		return cmd
 	case "enter", "tab", "down", "shift+tab", "up":
 		if w.configurationPresent[key] {

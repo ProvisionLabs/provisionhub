@@ -56,7 +56,7 @@ func (s Schema) Validate() error {
 				}
 				seen[option] = true
 			}
-		} else if len(p.Options) > 0 {
+		} else if p.Options != nil {
 			return fail("options are only supported for enum")
 		}
 		if p.Minimum != nil || p.Maximum != nil {

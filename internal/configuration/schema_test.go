@@ -70,7 +70,7 @@ func TestInvalidSchemas(t *testing.T) {
 		{Type: "object"}, {Type: "boolean", Default: "false"}, {Type: "integer", Default: 1.0},
 		{Type: "integer", Minimum: ptr(int64(5)), Maximum: ptr(int64(1))},
 		{Type: "enum"}, {Type: "enum", Options: []string{"a", "a"}}, {Type: "enum", Options: []string{"a"}, Default: "b"},
-		{Type: "boolean", Options: []string{"a"}}, {Type: "string", Minimum: ptr(int64(0))},
+		{Type: "boolean", Options: []string{"a"}}, {Type: "boolean", Options: []string{}}, {Type: "string", Minimum: ptr(int64(0))},
 		{Type: "string", MinLength: ptr(-1)}, {Type: "string", MinLength: ptr(4), MaxLength: ptr(1)},
 	} {
 		if err := (Schema{Properties: map[string]Property{"value": p}}).Validate(); err == nil {
@@ -101,5 +101,13 @@ func TestParse(t *testing.T) {
 		if _, err := (Property{Type: "integer"}).Parse(raw); err == nil {
 			t.Fatal(raw)
 		}
+	}
+}
+
+func TestZeroDefaultsAndRequiredDefault(t *testing.T) {
+	s := Schema{Properties: map[string]Property{"boolean": {Type: "boolean", Default: false}, "integer": {Type: "integer", Default: 0}, "string": {Type: "string", Default: "", Required: true}}}
+	values, err := Resolve(s, nil, "api")
+	if err != nil || values["boolean"] != false || values["integer"] != int64(0) || values["string"] != "" {
+		t.Fatal(values, err)
 	}
 }
