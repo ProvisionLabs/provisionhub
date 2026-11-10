@@ -18,53 +18,64 @@ func validateConfigurationYAML(data []byte) error {
 	}
 	root := document.Content[0]
 	for i := 0; i+1 < len(root.Content); i += 2 {
-		if root.Content[i].Value != "configuration" {
+		key, node := root.Content[i].Value, root.Content[i+1]
+		if key == "configuration" {
+			if err := validateSchemaNode(node); err != nil {
+				return err
+			}
+		}
+		if key == "connections" {
+			if err := validateConnectionsYAML(node); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func validateSchemaNode(config *yaml.Node) error {
+	if config.Kind != yaml.MappingNode {
+		return fmt.Errorf("configuration must be a mapping")
+	}
+	for j := 0; j+1 < len(config.Content); j += 2 {
+		if config.Content[j].Value != "properties" {
 			continue
 		}
-		config := root.Content[i+1]
-		if config.Kind != yaml.MappingNode {
-			return fmt.Errorf("configuration must be a mapping")
+		properties := config.Content[j+1]
+		if properties.Kind != yaml.MappingNode {
+			return fmt.Errorf("configuration.properties must be a mapping")
 		}
-		for j := 0; j+1 < len(config.Content); j += 2 {
-			if config.Content[j].Value != "properties" {
-				continue
+		for k := 0; k+1 < len(properties.Content); k += 2 {
+			key, property := properties.Content[k], properties.Content[k+1]
+			if key.Tag != "!!str" || property.Kind != yaml.MappingNode {
+				return fmt.Errorf("configuration property must have a string key and mapping definition")
 			}
-			properties := config.Content[j+1]
-			if properties.Kind != yaml.MappingNode {
-				return fmt.Errorf("configuration.properties must be a mapping")
-			}
-			for k := 0; k+1 < len(properties.Content); k += 2 {
-				key, property := properties.Content[k], properties.Content[k+1]
-				if key.Tag != "!!str" || property.Kind != yaml.MappingNode {
-					return fmt.Errorf("configuration property must have a string key and mapping definition")
+			for n := 0; n+1 < len(property.Content); n += 2 {
+				field, value := property.Content[n], property.Content[n+1]
+				tag := "!!str"
+				switch field.Value {
+				case "required":
+					tag = "!!bool"
+				case "minimum", "maximum", "minLength", "maxLength":
+					tag = "!!int"
+				case "default":
+					if value.Kind != yaml.ScalarNode || (value.Tag != "!!str" && value.Tag != "!!int" && value.Tag != "!!bool") {
+						return fmt.Errorf("configuration.%s: default must be a string, boolean, or integer", key.Value)
+					}
+					continue
+				case "options":
+					if value.Kind != yaml.SequenceNode {
+						return fmt.Errorf("configuration.%s: options must be a sequence", key.Value)
+					}
+					for _, option := range value.Content {
+						if option.Kind != yaml.ScalarNode || option.Tag != "!!str" {
+							return fmt.Errorf("configuration.%s: enum options must be strings", key.Value)
+						}
+					}
+					continue
 				}
-				for n := 0; n+1 < len(property.Content); n += 2 {
-					field, value := property.Content[n], property.Content[n+1]
-					tag := "!!str"
-					switch field.Value {
-					case "required":
-						tag = "!!bool"
-					case "minimum", "maximum", "minLength", "maxLength":
-						tag = "!!int"
-					case "default":
-						if value.Kind != yaml.ScalarNode || (value.Tag != "!!str" && value.Tag != "!!int" && value.Tag != "!!bool") {
-							return fmt.Errorf("configuration.%s: default must be a string, boolean, or integer", key.Value)
-						}
-						continue
-					case "options":
-						if value.Kind != yaml.SequenceNode {
-							return fmt.Errorf("configuration.%s: options must be a sequence", key.Value)
-						}
-						for _, option := range value.Content {
-							if option.Kind != yaml.ScalarNode || option.Tag != "!!str" {
-								return fmt.Errorf("configuration.%s: enum options must be strings", key.Value)
-							}
-						}
-						continue
-					}
-					if field.Tag != "!!str" || value.Kind != yaml.ScalarNode || value.Tag != tag {
-						return fmt.Errorf("configuration.%s.%s: expected %s", key.Value, field.Value, tag)
-					}
+				if field.Tag != "!!str" || value.Kind != yaml.ScalarNode || value.Tag != tag {
+					return fmt.Errorf("configuration.%s.%s: expected %s", key.Value, field.Value, tag)
 				}
 			}
 		}

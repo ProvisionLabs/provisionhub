@@ -56,10 +56,13 @@ type Component struct {
 func (c Component) ID() string { return "component/" + c.Name }
 
 type Connection struct {
-	From string `json:"from"`
-	To   string `json:"to"`
-	Type string `json:"type"`
+	From          string               `json:"from"`
+	To            string               `json:"to"`
+	Type          string               `json:"type"`
+	Configuration configuration.Values `json:"configuration,omitempty"`
 }
+
+func (c Connection) ID() string { return c.From + ":" + c.To + ":" + c.Type }
 
 func (s Spec) usesComponents() bool {
 	return s.Components != nil || s.Connections != nil
@@ -93,6 +96,9 @@ func (m Manifest) CanonicalComponents() []Component {
 
 func (m Manifest) CanonicalConnections() []Connection {
 	connections := slices.Clone(m.Spec.Connections)
+	for i := range connections {
+		connections[i].Configuration = maps.Clone(connections[i].Configuration)
+	}
 	slices.SortFunc(connections, func(a, b Connection) int {
 		return strings.Compare(a.From+"\x00"+a.To+"\x00"+a.Type, b.From+"\x00"+b.To+"\x00"+b.Type)
 	})
@@ -154,21 +160,21 @@ func (m Manifest) Validate() error {
 				return fmt.Errorf("component %q requires a technology", component.Name)
 			}
 		}
-		connections := map[Connection]bool{}
-		for _, connection := range m.Spec.Connections {
+		connections := map[string]bool{}
+		for _, connection := range m.CanonicalConnections() {
 			if !names[connection.From] || !names[connection.To] {
 				return fmt.Errorf("connection %q to %q references an unknown component", connection.From, connection.To)
 			}
 			if connection.From == connection.To {
 				return fmt.Errorf("connection %q cannot target itself", connection.From)
 			}
-			if connection.Type != "http" {
-				return fmt.Errorf("unsupported connection type %q", connection.Type)
+			if err := ValidateName(connection.Type); err != nil {
+				return fmt.Errorf("invalid connection type %q: %w", connection.Type, err)
 			}
-			if connections[connection] {
+			if connections[connection.ID()] {
 				return fmt.Errorf("duplicate connection from %q to %q", connection.From, connection.To)
 			}
-			connections[connection] = true
+			connections[connection.ID()] = true
 		}
 		return nil
 	}

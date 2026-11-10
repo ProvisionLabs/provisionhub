@@ -65,9 +65,9 @@ func TestSpecificationRejectsInvalidComponentsAndConnections(t *testing.T) {
 		{"mixed", func(s *Specification) { s.Spec.Backend = &TechnologySelection{Technology: "nestjs"} }},
 		{"unknown connection", func(s *Specification) { s.Spec.Connections = []Connection{{From: "missing", To: "api", Type: "http"}} }},
 		{"self connection", func(s *Specification) { s.Spec.Connections = []Connection{{From: "api", To: "api", Type: "http"}} }},
-		{"unsupported connection", func(s *Specification) {
+		{"invalid connection identifier", func(s *Specification) {
 			s.Spec.Components = append(s.Spec.Components, Component{Name: "web", Type: "frontend", Technology: "nextjs"})
-			s.Spec.Connections = []Connection{{From: "web", To: "api", Type: "grpc"}}
+			s.Spec.Connections = []Connection{{From: "web", To: "api", Type: "invalid.type"}}
 		}},
 	}
 	for _, tc := range tests {

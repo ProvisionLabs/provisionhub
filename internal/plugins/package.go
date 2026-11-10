@@ -63,7 +63,7 @@ func Package(folder string) ([]byte, Manifest, error) {
 		return nil, m, errors.New("manifest changed during packaging")
 	}
 	files := map[string][]byte{"plugin.yaml": manifest}
-	for _, f := range m.Files {
+	for _, f := range m.AllFiles() {
 		files[f.Source] = f.Content
 	}
 	names := make([]string, 0, len(files))
@@ -114,7 +114,7 @@ func Checksum(data []byte) string {
 func ContentChecksum(manifest Manifest) string {
 	hash := sha256.New()
 	hash.Write(manifest.Digest[:])
-	for _, file := range manifest.Files {
+	for _, file := range manifest.AllFiles() {
 		fmt.Fprintf(hash, "%d:%s", len(file.Source), file.Source)
 		hash.Write(file.Digest[:])
 	}
@@ -203,7 +203,7 @@ func Extract(data []byte, destination string) (Manifest, error) {
 		return Manifest{}, err
 	}
 	allowed := map[string]bool{"plugin.yaml": true}
-	for _, f := range m.Files {
+	for _, f := range m.AllFiles() {
 		allowed[strings.ToLower(f.Source)] = true
 	}
 	if len(allowed) != len(seen) {

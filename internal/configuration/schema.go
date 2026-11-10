@@ -31,6 +31,8 @@ type Property struct {
 
 var keyPattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]{0,62}$`)
 
+func ValidKey(key string) bool { return keyPattern.MatchString(key) }
+
 func (s Schema) Keys() []string { return slices.Sorted(maps.Keys(s.Properties)) }
 
 func (s Schema) Validate() error {
