@@ -3,6 +3,7 @@ package planning
 
 import (
 	"github.com/ProvisionLabs/provisionhub/internal/catalog"
+	"github.com/ProvisionLabs/provisionhub/internal/configuration"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
 )
 
@@ -46,6 +47,7 @@ const (
 	MissingOperationProvider DiagnosticCode = "missing_operation_provider"
 	InvalidOperation         DiagnosticCode = "invalid_operation"
 	InvalidPlugin            DiagnosticCode = "invalid_plugin"
+	InvalidConfiguration     DiagnosticCode = "invalid_configuration"
 	InvalidDependency        DiagnosticCode = "invalid_dependency"
 	DependencyCycle          DiagnosticCode = "dependency_cycle"
 )
@@ -65,11 +67,12 @@ type Plan struct {
 }
 
 type Component struct {
-	ID         string           `json:"id"`
-	Name       string           `json:"name"`
-	Type       catalog.Category `json:"type"`
-	Technology string           `json:"technology"`
-	PluginID   string           `json:"pluginId,omitempty"`
+	Configuration configuration.Values `json:"configuration,omitempty"`
+	ID            string               `json:"id"`
+	Name          string               `json:"name"`
+	Type          catalog.Category     `json:"type"`
+	Technology    string               `json:"technology"`
+	PluginID      string               `json:"pluginId,omitempty"`
 }
 
 type Technology struct {
@@ -80,19 +83,20 @@ type Technology struct {
 }
 
 type Operation struct {
-	ID           string          `json:"id"`
-	Description  string          `json:"description"`
-	Type         OperationType   `json:"type"`
-	Technology   string          `json:"technology,omitempty"`
-	ComponentID  string          `json:"componentId,omitempty"`
-	PluginID     string          `json:"pluginId,omitempty"`
-	PluginDigest string          `json:"pluginDigest,omitempty"`
-	Source       string          `json:"source,omitempty"`
-	SourceType   string          `json:"sourceType,omitempty"`
-	SourceDigest string          `json:"sourceDigest,omitempty"`
-	TargetPaths  []string        `json:"targetPaths"`
-	Dependencies []string        `json:"dependencies"`
-	Status       OperationStatus `json:"status"`
+	ID             string          `json:"id"`
+	Description    string          `json:"description"`
+	Type           OperationType   `json:"type"`
+	Technology     string          `json:"technology,omitempty"`
+	ComponentID    string          `json:"componentId,omitempty"`
+	PluginID       string          `json:"pluginId,omitempty"`
+	PluginDigest   string          `json:"pluginDigest,omitempty"`
+	Source         string          `json:"source,omitempty"`
+	SourceType     string          `json:"sourceType,omitempty"`
+	SourceDigest   string          `json:"sourceDigest,omitempty"`
+	RenderedDigest string          `json:"renderedDigest,omitempty"`
+	TargetPaths    []string        `json:"targetPaths"`
+	Dependencies   []string        `json:"dependencies"`
+	Status         OperationStatus `json:"status"`
 }
 
 type Diagnostic struct {

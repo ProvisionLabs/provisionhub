@@ -24,7 +24,7 @@ reserved Windows device names are rejected. Distribution v1 accepts stable
 `major.minor.patch` versions with numeric ordering and no leading zeroes. Legacy
 local manifest version validation remains unchanged. `minimumCoreVersion` is an
 inclusive lower bound, checked during install and offline loading. The current
-core compatibility version is 0.1.0, separately from its development build label.
+core compatibility version is 0.2.0, separately from its development build label.
 Future compatibility ranges require an explicit contract evolution, not a solver.
 
 ## Registry contract

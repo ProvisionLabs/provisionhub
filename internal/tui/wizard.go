@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/ProvisionLabs/provisionhub/internal/application"
+	"github.com/ProvisionLabs/provisionhub/internal/configuration"
 	"github.com/ProvisionLabs/provisionhub/internal/execution"
 	"github.com/ProvisionLabs/provisionhub/internal/planning"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
@@ -21,6 +22,7 @@ const (
 	componentCategoryStep
 	componentTechnologyStep
 	componentNameStep
+	componentConfigurationStep
 	reviewStep
 	resultStep
 )
@@ -38,29 +40,38 @@ type projectAppliedMsg struct {
 }
 
 type wizard struct {
-	defaultWorkspace    string
-	step                wizardStep
-	name                textinput.Model
-	destination         textinput.Model
-	focused             int
-	err                 string
-	saving              bool
-	resultSpec          project.Specification
-	resultDestination   string
-	preview             bool
-	confirm             bool
-	applying            bool
-	applyResult         execution.Result
-	plan                planning.Plan
-	planOffset          int
-	width               int
-	height              int
-	components          []project.Component
-	componentCursor     int
-	componentCategory   int
-	componentTechnology int
-	componentName       textinput.Model
-	editingComponent    int
+	defaultWorkspace        string
+	step                    wizardStep
+	name                    textinput.Model
+	destination             textinput.Model
+	focused                 int
+	err                     string
+	saving                  bool
+	resultSpec              project.Specification
+	resultDestination       string
+	preview                 bool
+	confirm                 bool
+	applying                bool
+	applyResult             execution.Result
+	plan                    planning.Plan
+	planOffset              int
+	width                   int
+	height                  int
+	components              []project.Component
+	componentCursor         int
+	componentCategory       int
+	componentTechnology     int
+	componentName           textinput.Model
+	editingComponent        int
+	configurationSchema     configuration.Schema
+	configurationKeys       []string
+	configurationRaw        map[string]string
+	configurationPresent    map[string]bool
+	configurationCursor     int
+	configurationInput      textinput.Model
+	configurationDraft      project.Component
+	configurationTechnology string
+	configurationRequest    *configurationRequest
 }
 
 func newWizard() (wizard, tea.Cmd) {
@@ -92,6 +103,7 @@ func (w *wizard) resize(width, height int) {
 	w.name.SetWidth(inputWidth)
 	w.destination.SetWidth(inputWidth)
 	w.componentName.SetWidth(inputWidth)
+	w.configurationInput.SetWidth(max(1, min(width-4, 48)))
 }
 
 func (w *wizard) focusField(index int) tea.Cmd {

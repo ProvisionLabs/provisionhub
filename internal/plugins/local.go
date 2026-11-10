@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/ProvisionLabs/provisionhub/internal/catalog"
+	"github.com/ProvisionLabs/provisionhub/internal/configuration"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
 	"go.yaml.in/yaml/v3"
 )
@@ -31,16 +32,17 @@ type File struct {
 }
 
 type Manifest struct {
-	APIVersion   string           `yaml:"apiVersion"`
-	ID           string           `yaml:"id"`
-	Version      string           `yaml:"version"`
-	TechnologyID string           `yaml:"technologyId"`
-	Category     catalog.Category `yaml:"category"`
-	Name         string           `yaml:"name"`
-	Description  string           `yaml:"description"`
-	Capability   string           `yaml:"capability"`
-	Files        []File           `yaml:"files"`
-	Digest       [32]byte         `yaml:"-"`
+	Configuration configuration.Schema `yaml:"configuration,omitempty"`
+	APIVersion    string               `yaml:"apiVersion"`
+	ID            string               `yaml:"id"`
+	Version       string               `yaml:"version"`
+	TechnologyID  string               `yaml:"technologyId"`
+	Category      catalog.Category     `yaml:"category"`
+	Name          string               `yaml:"name"`
+	Description   string               `yaml:"description"`
+	Capability    string               `yaml:"capability"`
+	Files         []File               `yaml:"files"`
+	Digest        [32]byte             `yaml:"-"`
 }
 
 type Set struct{ byTechnology map[string]Manifest }
@@ -141,7 +143,7 @@ func loadPluginFolder(root *os.Root, folder string, technologies catalog.Catalog
 			return Manifest{}, false, fmt.Errorf("plugin %q file %q: %w", m.ID, m.Files[i].Source, err)
 		}
 		if m.Files[i].Type == "template" {
-			if err := validateVariables(content); err != nil {
+			if err := validateTemplate(content, m.Configuration); err != nil {
 				return Manifest{}, false, fmt.Errorf("plugin %q file %q: %w", m.ID, m.Files[i].Source, err)
 			}
 		}
@@ -153,6 +155,9 @@ func loadPluginFolder(root *os.Root, folder string, technologies catalog.Catalog
 
 func parse(data []byte) (Manifest, error) {
 	var m Manifest
+	if err := validateConfigurationYAML(data); err != nil {
+		return m, err
+	}
 	d := yaml.NewDecoder(bytes.NewReader(data))
 	d.KnownFields(true)
 	if err := d.Decode(&m); err != nil {
@@ -177,6 +182,9 @@ func parse(data []byte) (Manifest, error) {
 	}
 	if len(m.Files) == 0 {
 		return m, errors.New("plugin must declare at least one file")
+	}
+	if err := m.Configuration.Validate(); err != nil {
+		return m, err
 	}
 	paths := map[string]bool{}
 	for _, file := range m.Files {
@@ -297,23 +305,4 @@ func readBounded(root *os.Root, name string, limit int64) ([]byte, error) {
 		return nil, fmt.Errorf("file %q exceeds %d bytes", name, limit)
 	}
 	return data, nil
-}
-
-func validateVariables(content []byte) error {
-	s := string(content)
-	for strings.Contains(s, "{{") {
-		before, rest, _ := strings.Cut(s, "{{")
-		if strings.Contains(before, "}}") {
-			return errors.New("unmatched template delimiter")
-		}
-		value, after, ok := strings.Cut(rest, "}}")
-		if !ok || (value != "projectName" && value != "componentName") {
-			return fmt.Errorf("unsupported template variable %q (only {{projectName}} and {{componentName}} are allowed)", value)
-		}
-		s = after
-	}
-	if strings.Contains(s, "}}") {
-		return errors.New("unmatched template delimiter")
-	}
-	return nil
 }
