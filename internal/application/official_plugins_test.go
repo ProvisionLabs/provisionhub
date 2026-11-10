@@ -2,9 +2,11 @@ package application
 
 import (
 	"context"
+	"database/sql"
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,6 +51,7 @@ func TestOfficialPackageLifecycle(t *testing.T) {
 		index.Plugins = append(index.Plugins, registry.Plugin{ID: id, ManifestID: manifest.ID, Publisher: "ProvisionLabs", Name: manifest.Name, Description: manifest.Description, TechnologyID: manifest.TechnologyID, Category: string(manifest.Category), Versions: []registry.Release{{Version: manifest.Version, MinimumCoreVersion: registry.CoreVersion, Artifact: server.URL + "/releases/download/" + manifest.ID + "-v" + manifest.Version + "/plugin.tar.gz", SHA256: plugins.Checksum(packages[manifest.ID])}}})
 	}
 	manager := PluginManager{DataDirectory: t.TempDir(), HTTP: server.Client()}
+	installed := map[string]plugins.Installation{}
 	t.Setenv("PROVISIONHUB_DATA_DIR", manager.DataDirectory)
 	t.Setenv("PROVISIONHUB_PLUGINS", "")
 	for _, plugin := range index.Plugins {
@@ -56,6 +59,7 @@ func TestOfficialPackageLifecycle(t *testing.T) {
 		if err != nil || item.State != "ready" {
 			t.Fatal(item, err)
 		}
+		installed[plugin.ID] = item
 	}
 	restarted := NewProjectService()
 	restarted.pluginManager = &manager
@@ -70,12 +74,22 @@ func TestOfficialPackageLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	connected := len(manifests[0].Connections.Provides) > 0 && len(manifests[1].Connections.Consumes) > 0
+	expectedFiles := 40
+	if connected {
+		manifest.Spec.Connections = []project.Connection{
+			{From: "web", To: "api", Type: "http", Configuration: configuration.Values{"serverHost": "127.0.0.1"}},
+			{From: "admin", To: "billing", Type: "http", Configuration: configuration.Values{"serverHost": "api.example.test"}},
+		}
+		expectedFiles = 44
+	}
+	assertNoSavedProjects(t, manager.DataDirectory)
 	plan, err := restarted.PlanSpecification(manifest)
 	if err != nil || !plan.Executable {
 		t.Fatal(plan, err)
 	}
 	applied, err := restarted.ApplySpecification(manifest, destination, plan)
-	if err != nil || len(applied.Created) != 40 {
+	if err != nil || len(applied.Created) != expectedFiles {
 		t.Fatal(len(applied.Created), err)
 	}
 	for _, name := range []string{"provisionhub.yaml", filepath.Join(".provisionhub", "plugins.lock.yaml")} {
@@ -104,6 +118,7 @@ func TestOfficialPackageLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	secondSpec.Spec.Connections = manifest.CanonicalConnections()
 	secondManager.Source = fixedRegistry{registry.Index{}}
 	server.Close() // Generation on both machines must now work offline.
 	secondPlan, err := second.PlanSpecification(secondSpec)
@@ -144,6 +159,32 @@ func TestOfficialPackageLifecycle(t *testing.T) {
 			}
 		}
 	}
+	if connected {
+		for name, want := range map[string]string{"web/.env.local": "API_ORIGIN=http://127.0.0.1:4001", "admin/.env.local": "API_ORIGIN=http://api.example.test:3000"} {
+			data, err := os.ReadFile(filepath.Join(destination, filepath.FromSlash(name)))
+			if err != nil || !strings.Contains(string(data), want) {
+				t.Fatal(name, string(data), err)
+			}
+		}
+		// Even unselected connection template inputs belong to managed integrity.
+		item := installed["official/nextjs"]
+		integration := filepath.Join(item.Path, filepath.FromSlash(manifests[1].Connections.Consumes[0].Files[0].Source))
+		original, err := os.ReadFile(integration)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(integration, []byte("tampered"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.check(item); err == nil {
+			t.Fatal("managed integrity ignored connection input")
+		}
+		if err := os.WriteFile(integration, original, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assertNoSavedProjects(t, manager.DataDirectory)
+	assertNoSavedProjects(t, secondManager.DataDirectory)
 	if err := manager.Remove(context.Background(), "official/nestjs", manifests[0].Version); err != nil {
 		t.Fatal(err)
 	}
@@ -156,5 +197,23 @@ func TestOfficialPackageLifecycle(t *testing.T) {
 	}
 	if _, ok := remaining.ForTechnology("nextjs"); !ok {
 		t.Fatal("unrelated plugin lost")
+	}
+}
+
+func assertNoSavedProjects(t *testing.T, directory string) {
+	t.Helper()
+	name := filepath.ToSlash(filepath.Join(directory, "provisionhub.db"))
+	if !strings.HasPrefix(name, "/") {
+		name = "/" + name
+	}
+	uri := url.URL{Scheme: "file", Path: name, RawQuery: "mode=ro"}
+	db, err := sql.Open("sqlite", uri.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var count int
+	if err := db.QueryRow("SELECT count(*) FROM saved_projects").Scan(&count); err != nil || count != 0 {
+		t.Fatal("generation registered a project", count, err)
 	}
 }
