@@ -3,8 +3,11 @@ package project
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
+
+	"github.com/ProvisionLabs/provisionhub/internal/configuration"
 )
 
 const (
@@ -43,10 +46,11 @@ type Spec struct {
 // Component is one named instance of a catalog technology. Legacy is internal
 // normalization metadata and is never serialized in a project manifest.
 type Component struct {
-	Name       string
-	Type       string
-	Technology string
-	Legacy     bool
+	Configuration configuration.Values
+	Name          string
+	Type          string
+	Technology    string
+	Legacy        bool
 }
 
 func (c Component) ID() string { return "component/" + c.Name }
@@ -68,6 +72,9 @@ func (m Manifest) UsesComponents() bool { return m.Spec.usesComponents() }
 func (m Manifest) CanonicalComponents() []Component {
 	if m.Spec.usesComponents() {
 		components := slices.Clone(m.Spec.Components)
+		for i := range components {
+			components[i].Configuration = maps.Clone(components[i].Configuration)
+		}
 		slices.SortFunc(components, func(a, b Component) int { return strings.Compare(a.Name, b.Name) })
 		return components
 	}

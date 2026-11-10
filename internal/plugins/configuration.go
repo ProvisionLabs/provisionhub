@@ -2,13 +2,8 @@ package plugins
 
 import (
 	"fmt"
-	"github.com/ProvisionLabs/provisionhub/internal/configuration"
 	"go.yaml.in/yaml/v3"
 )
-
-func validateTemplate(content []byte, _ configuration.Schema) error {
-	return validateVariables(content)
-}
 
 // Check scalar tags before YAML's typed decoder can convert numbers to strings
 // or fractional bounds to integers. The normal strict decoder checks field names

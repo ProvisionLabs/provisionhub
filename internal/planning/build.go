@@ -1,10 +1,12 @@
 package planning
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 
 	"github.com/ProvisionLabs/provisionhub/internal/catalog"
+	"github.com/ProvisionLabs/provisionhub/internal/configuration"
 	"github.com/ProvisionLabs/provisionhub/internal/plugins"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
 )
@@ -60,6 +62,32 @@ func BuildWithPlugins(manifest project.Specification, technologies catalog.Catal
 		plan.Diagnostics = append(plan.Diagnostics, Diagnostic{Severity: SeverityError, Code: IncompatibleTechnologies, Message: err.Error()})
 		return finalizePlan(plan)
 	}
+	// Resolve all instances before contributing operations. Plugin definitions
+	// remain immutable, including when multiple components share a technology.
+	renderedDigests := map[string]map[string][32]byte{}
+	for i := range components {
+		component := &components[i]
+		renderedDigests[component.ID()] = map[string][32]byte{}
+		plugin, _ := loaded.ForTechnology(component.Technology)
+		values, err := configuration.Resolve(plugin.Configuration, component.Configuration, component.Name)
+		if err == nil {
+			component.Configuration = values
+			for _, file := range plugin.Files {
+				data, renderErr := plugins.Render(file, manifest.Metadata.Name, *component, plugin.Configuration, values)
+				if renderErr != nil {
+					err = fmt.Errorf("component %q file %q: %w", component.Name, file.Source, renderErr)
+					break
+				}
+				renderedDigests[component.ID()][file.Destination] = sha256.Sum256(data)
+			}
+		}
+		if err != nil {
+			plan.Diagnostics = append(plan.Diagnostics, Diagnostic{Severity: SeverityError, Code: InvalidConfiguration, Message: err.Error(), ComponentID: component.ID(), Field: "spec.components." + component.Name + ".configuration"})
+		}
+	}
+	if len(plan.Diagnostics) > 0 {
+		return finalizePlan(plan)
+	}
 	plan.Status = StatusPlanned
 	for i, technology := range plan.Technologies {
 		component := components[i]
@@ -95,7 +123,9 @@ func BuildWithPlugins(manifest project.Specification, technologies catalog.Catal
 			operation.PluginID = plugin.ID
 			operation.PluginDigest = hex.EncodeToString(plugin.Digest[:])
 			planComponent.PluginID = plugin.ID
+			planComponent.Configuration = component.Configuration
 			for _, file := range plugin.Files {
+				renderedDigest := renderedDigests[component.ID()][file.Destination]
 				target := plugins.DestinationFor(component, file)
 				operation.TargetPaths = append(operation.TargetPaths, target)
 				plan.Operations = append(plan.Operations, Operation{
@@ -104,8 +134,9 @@ func BuildWithPlugins(manifest project.Specification, technologies catalog.Catal
 					Type:        GenerateFile, Technology: technology.ID, ComponentID: componentID, PluginID: plugin.ID,
 					PluginDigest: hex.EncodeToString(plugin.Digest[:]),
 					Source:       file.Source, SourceType: file.Type,
-					SourceDigest: hex.EncodeToString(file.Digest[:]),
-					TargetPaths:  []string{target}, Dependencies: []string{operation.ID}, Status: OperationSupported,
+					SourceDigest:   hex.EncodeToString(file.Digest[:]),
+					RenderedDigest: hex.EncodeToString(renderedDigest[:]),
+					TargetPaths:    []string{target}, Dependencies: []string{operation.ID}, Status: OperationSupported,
 				})
 			}
 		} else {

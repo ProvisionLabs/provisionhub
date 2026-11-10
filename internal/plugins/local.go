@@ -306,22 +306,3 @@ func readBounded(root *os.Root, name string, limit int64) ([]byte, error) {
 	}
 	return data, nil
 }
-
-func validateVariables(content []byte) error {
-	s := string(content)
-	for strings.Contains(s, "{{") {
-		before, rest, _ := strings.Cut(s, "{{")
-		if strings.Contains(before, "}}") {
-			return errors.New("unmatched template delimiter")
-		}
-		value, after, ok := strings.Cut(rest, "}}")
-		if !ok || (value != "projectName" && value != "componentName") {
-			return fmt.Errorf("unsupported template variable %q (only {{projectName}} and {{componentName}} are allowed)", value)
-		}
-		s = after
-	}
-	if strings.Contains(s, "}}") {
-		return errors.New("unmatched template delimiter")
-	}
-	return nil
-}

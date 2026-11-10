@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/ProvisionLabs/provisionhub/internal/catalog"
+	"github.com/ProvisionLabs/provisionhub/internal/configuration"
 	"github.com/ProvisionLabs/provisionhub/internal/planning"
 	"github.com/ProvisionLabs/provisionhub/internal/plugins"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
@@ -136,13 +137,13 @@ func Apply(reviewed planning.Plan, manifest project.Specification, loaded plugin
 		if matched == nil {
 			return Result{}, fmt.Errorf("source for operation %q changed", op.ID)
 		}
-		data := matched.Content
-		if matched.Type == "template" {
-			componentName := component.Name
-			if component.Legacy {
-				componentName = manifest.Metadata.Name
-			}
-			data = []byte(strings.NewReplacer("{{projectName}}", manifest.Metadata.Name, "{{componentName}}", componentName).Replace(string(data)))
+		values, err := configuration.Resolve(plugin.Configuration, component.Configuration, component.Name)
+		if err != nil {
+			return Result{}, err
+		}
+		data, err := plugins.Render(*matched, manifest.Metadata.Name, component, plugin.Configuration, values)
+		if err != nil {
+			return Result{}, err
 		}
 		outputs = append(outputs, output{path: op.TargetPaths[0], data: data})
 	}
