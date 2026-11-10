@@ -124,6 +124,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.nav.current == createProject {
 			return m, m.wizard.configurationLoaded(msg)
 		}
+	case connectionOptionsMsg:
+		if m.nav.current == createProject {
+			return m, m.wizard.connectionOptionsLoaded(msg)
+		}
 	case tea.KeyPressMsg:
 		if m.nav.current == createProject && m.wizard.applying {
 			return m, nil

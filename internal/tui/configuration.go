@@ -47,14 +47,18 @@ func (w *wizard) configurationLoaded(msg configurationLoadedMsg) tea.Cmd {
 		w.step = componentNameStep
 		return w.componentName.Focus()
 	}
-	w.configurationSchema = msg.schema
 	w.configurationTechnology = w.configurationDraft.Technology
-	w.configurationKeys = msg.schema.Keys()
+	return w.openConfiguration(msg.schema)
+}
+
+func (w *wizard) openConfiguration(schema configuration.Schema) tea.Cmd {
+	w.configurationSchema = schema
+	w.configurationKeys = schema.Keys()
 	w.configurationRaw = map[string]string{}
 	w.configurationPresent = map[string]bool{}
 	w.configurationCursor = 0
 	for _, key := range w.configurationKeys {
-		property := msg.schema.Properties[key]
+		property := schema.Properties[key]
 		value, present := w.configurationDraft.Configuration[key]
 		if !present && property.Default != nil {
 			value, present = property.Default, true
@@ -65,11 +69,10 @@ func (w *wizard) configurationLoaded(msg configurationLoadedMsg) tea.Cmd {
 		}
 	}
 	if len(w.configurationKeys) == 0 {
-		values, err := configuration.Resolve(msg.schema, w.configurationDraft.Configuration, w.configurationDraft.Name)
+		values, err := configuration.Resolve(schema, w.configurationDraft.Configuration, w.configurationDraft.Name)
 		if err != nil {
 			w.err = err.Error()
-			w.step = componentNameStep
-			return w.componentName.Focus()
+			return w.backFromConfiguration()
 		}
 		w.saveConfiguredComponent(values)
 		return nil
@@ -91,9 +94,22 @@ func (w *wizard) focusConfiguration() tea.Cmd {
 }
 
 func (w *wizard) saveConfiguredComponent(values configuration.Values) {
+	if w.configuringConnection {
+		w.saveConnection(values)
+		return
+	}
 	component := w.configurationDraft
 	component.Configuration = values
 	if w.editingComponent >= 0 {
+		previous := w.components[w.editingComponent].Name
+		for i := range w.connections {
+			if w.connections[i].From == previous {
+				w.connections[i].From = component.Name
+			}
+			if w.connections[i].To == previous {
+				w.connections[i].To = component.Name
+			}
+		}
 		w.components[w.editingComponent] = component
 		w.componentCursor = w.editingComponent
 	} else {
@@ -136,9 +152,7 @@ func (w *wizard) updateConfiguration(msg tea.KeyPressMsg) tea.Cmd {
 	p := w.configurationSchema.Properties[key]
 	switch msg.String() {
 	case "esc":
-		w.configurationInput.Blur()
-		w.step = componentNameStep
-		return w.componentName.Focus()
+		return w.backFromConfiguration()
 	case "ctrl+u":
 		delete(w.configurationPresent, key)
 		w.configurationRaw[key] = ""

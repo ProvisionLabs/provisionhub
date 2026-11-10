@@ -49,8 +49,11 @@ func reference(ref string, schema configuration.Schema) (key, escape string, err
 	if !ok {
 		return "", "", fmt.Errorf("undeclared template reference config.%s", key)
 	}
-	if escape != "" && escape != "json" && escape != "html" {
+	if escape != "" && escape != "json" && escape != "html" && escape != "host" {
 		return "", "", fmt.Errorf("unsupported template escape %q", escape)
+	}
+	if escape == "host" && (p.Type != "string" || p.Format != "host") {
+		return "", "", fmt.Errorf("|host requires a string property with format: host")
 	}
 	if (p.Type == "string" || p.Type == "enum") && escape == "" {
 		return "", "", fmt.Errorf("template reference config.%s requires |json or |html escaping", key)
@@ -89,22 +92,89 @@ func Render(file File, projectName string, component project.Component, schema c
 			}
 			return component.Name, nil
 		}
-		key, escape, err := reference(ref, schema)
+		return renderScalar(ref, schema, values, component.Name)
+	})
+}
+
+func renderScalar(ref string, schema configuration.Schema, values configuration.Values, identity string) (string, error) {
+	key, escape, err := reference(ref, schema)
+	if err != nil {
+		return "", err
+	}
+	value, ok := values[key]
+	if !ok {
+		return "", fmt.Errorf("component %q template reference config.%s has no value", identity, key)
+	}
+	value, err = schema.Properties[key].ValidateValue(value)
+	if err != nil {
+		return "", fmt.Errorf("component %q template reference config.%s: %w", identity, key, err)
+	}
+	if escape == "html" {
+		return html.EscapeString(fmt.Sprint(value)), nil
+	}
+	if escape == "host" {
+		return configuration.HostLiteral(value.(string))
+	}
+	data, err := json.Marshal(value)
+	return string(data), err
+}
+
+func integrationScope(ref string, schema configuration.Schema, consumer Consumer) (string, configuration.Schema, error) {
+	for _, scope := range []struct {
+		prefix string
+		schema configuration.Schema
+	}{{"config.", schema}, {"connection.", consumer.Configuration}, {"target.", consumer.Requires}} {
+		if strings.HasPrefix(ref, scope.prefix) {
+			return "config." + strings.TrimPrefix(ref, scope.prefix), scope.schema, nil
+		}
+	}
+	return "", configuration.Schema{}, fmt.Errorf("unsupported integration template reference %q", ref)
+}
+
+func validateIntegrationTemplate(content []byte, schema configuration.Schema, consumer Consumer) error {
+	_, err := expand(content, func(ref string) (string, error) {
+		if ref == "source.name" || ref == "target.name" || ref == "componentName" || ref == "component.name" || ref == "projectName" {
+			return "", nil
+		}
+		ref, schema, err := integrationScope(ref, schema, consumer)
 		if err != nil {
 			return "", err
 		}
-		value, ok := values[key]
-		if !ok {
-			return "", fmt.Errorf("component %q template reference config.%s has no value", component.Name, key)
+		_, _, err = reference(ref, schema)
+		return "", err
+	})
+	return err
+}
+
+// RenderIntegration adds fixed connection/target scopes to the same literal
+// renderer. The metadata has been validated against the consumer requirements.
+func RenderIntegration(file File, projectName string, source, target project.Component, componentSchema configuration.Schema, consumer Consumer, config, metadata configuration.Values) ([]byte, error) {
+	if file.Type == "copy" {
+		return file.Content, nil
+	}
+	return expand(file.Content, func(ref string) (string, error) {
+		switch ref {
+		case "projectName":
+			return projectName, nil
+		case "source.name", "componentName", "component.name":
+			return source.Name, nil
+		case "target.name":
+			return target.Name, nil
 		}
-		value, err = schema.Properties[key].ValidateValue(value)
+		values := source.Configuration
+		if strings.HasPrefix(ref, "connection.") {
+			values = config
+		} else if strings.HasPrefix(ref, "target.") {
+			values = metadata
+		}
+		normalized, schema, err := integrationScope(ref, componentSchema, consumer)
 		if err != nil {
-			return "", fmt.Errorf("component %q template reference config.%s: %w", component.Name, key, err)
+			return "", err
 		}
-		if escape == "html" {
-			return html.EscapeString(fmt.Sprint(value)), nil
+		value, err := renderScalar(normalized, schema, values, source.Name+" -> "+target.Name)
+		if err != nil {
+			return "", fmt.Errorf("integration reference %q: %w", ref, err)
 		}
-		data, err := json.Marshal(value)
-		return string(data), err
+		return value, nil
 	})
 }

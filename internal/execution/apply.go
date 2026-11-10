@@ -15,6 +15,7 @@ import (
 
 	"github.com/ProvisionLabs/provisionhub/internal/catalog"
 	"github.com/ProvisionLabs/provisionhub/internal/configuration"
+	"github.com/ProvisionLabs/provisionhub/internal/connections"
 	"github.com/ProvisionLabs/provisionhub/internal/planning"
 	"github.com/ProvisionLabs/provisionhub/internal/plugins"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
@@ -128,9 +129,36 @@ func Apply(reviewed planning.Plan, manifest project.Specification, loaded plugin
 			return Result{}, fmt.Errorf("plugin for %q changed", op.Technology)
 		}
 		var matched *plugins.File
-		for i := range plugin.Files {
-			if plugin.Files[i].Source == op.Source && plugins.DestinationFor(component, plugin.Files[i]) == op.TargetPaths[0] {
-				matched = &plugin.Files[i]
+		files := plugin.Files
+		var connection *connections.Resolved
+		var consumer plugins.Consumer
+		var target project.Component
+		if op.ConnectionID != "" {
+			for i := range fresh.Connections {
+				if fresh.Connections[i].ID() == op.ConnectionID && fresh.Connections[i].From == component.Name {
+					connection = &fresh.Connections[i]
+					break
+				}
+			}
+			if connection == nil {
+				return Result{}, fmt.Errorf("connection for operation %q changed", op.ID)
+			}
+			var exists bool
+			consumer, exists = plugin.Consumer(connection.ConsumerID)
+			if !exists {
+				return Result{}, fmt.Errorf("consumer for operation %q changed", op.ID)
+			}
+			files = consumer.Files
+			for _, candidate := range manifest.CanonicalComponents() {
+				if candidate.Name == connection.To {
+					target = candidate
+					break
+				}
+			}
+		}
+		for i := range files {
+			if files[i].Source == op.Source && plugins.DestinationFor(component, files[i]) == op.TargetPaths[0] {
+				matched = &files[i]
 				break
 			}
 		}
@@ -141,7 +169,13 @@ func Apply(reviewed planning.Plan, manifest project.Specification, loaded plugin
 		if err != nil {
 			return Result{}, err
 		}
-		data, err := plugins.Render(*matched, manifest.Metadata.Name, component, plugin.Configuration, values)
+		component.Configuration = values
+		var data []byte
+		if connection == nil {
+			data, err = plugins.Render(*matched, manifest.Metadata.Name, component, plugin.Configuration, values)
+		} else {
+			data, err = plugins.RenderIntegration(*matched, manifest.Metadata.Name, component, target, plugin.Configuration, consumer, connection.Configuration, connection.Metadata)
+		}
 		if err != nil {
 			return Result{}, err
 		}

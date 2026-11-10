@@ -19,6 +19,7 @@ func (w *wizard) componentCategoryValue() catalog.Category {
 }
 
 func (w *wizard) beginComponentEdit(index int, service application.ProjectService) {
+	w.configuringConnection = false
 	w.configurationRaw = nil
 	w.configurationKeys = nil
 	w.configurationTechnology = ""
@@ -72,11 +73,14 @@ func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.Proje
 			}
 		case "d":
 			if len(w.components) > 0 {
+				w.removeComponentConnections(w.components[w.componentCursor].Name)
 				w.components = append(w.components[:w.componentCursor], w.components[w.componentCursor+1:]...)
 				w.componentCursor = max(0, min(w.componentCursor, len(w.components)-1))
 			}
+		case "c":
+			w.step = connectionListStep
 		case "enter":
-			manifest, err := service.ValidateComponentsInput(w.name.Value(), w.destination.Value(), w.components)
+			manifest, err := w.specification(service)
 			if err != nil {
 				w.err = err.Error()
 				return nil, false
@@ -146,6 +150,8 @@ func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.Proje
 		}
 	case componentConfigurationStep:
 		return w.updateConfiguration(msg), false
+	case connectionListStep, connectionTargetStep:
+		return w.updateConnections(msg, service), false
 	case reviewStep:
 		switch key {
 		case "esc":
@@ -158,9 +164,8 @@ func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.Proje
 				w.err = "generation is unavailable; install generators for all selected technologies"
 				return nil, false
 			}
-			components := append([]project.Component{}, w.components...)
-			name, destination := w.name.Value(), w.destination.Value()
-			manifest, err := service.ValidateComponentsInput(name, destination, components)
+			destination := w.destination.Value()
+			manifest, err := w.specification(service)
 			if err != nil {
 				w.err = err.Error()
 				return nil, false
@@ -207,7 +212,7 @@ func (w *wizard) componentLines(service application.ProjectService, contentWidth
 		if len(w.components) == 0 {
 			lines = append(lines, "  No components yet")
 		}
-		lines = append(lines, "", "a add · e edit · d remove · enter review · esc back")
+		lines = append(lines, "", "a add · e edit · d remove · c connections", "enter review · esc back")
 	case componentCategoryStep:
 		lines = append(lines, "Choose component category:")
 		for i, category := range componentCategories {
@@ -230,11 +235,20 @@ func (w *wizard) componentLines(service application.ProjectService, contentWidth
 		lines = append(lines, "Component name:", "> "+w.componentName.View())
 	case componentConfigurationStep:
 		lines = append(lines, w.configurationLines()...)
+	case connectionListStep, connectionTargetStep:
+		lines = append(lines, w.connectionLines()...)
 	case reviewStep, resultStep:
 		lines = append(lines, "Project: "+w.name.Value(), "Destination: "+fitTail(w.destination.Value(), contentWidth-13), "", "Components:")
 		for _, component := range w.components {
 			lines = append(lines, fmt.Sprintf("  %s  %s  %s", component.Name, component.Type, service.TechnologyName(component.Technology)))
 			lines = append(lines, configurationSummary(component.Configuration)...)
+		}
+		if len(w.connections) > 0 {
+			lines = append(lines, "", "Connections:")
+			for _, c := range w.connections {
+				lines = append(lines, "  "+connectionLabel(c))
+				lines = append(lines, configurationSummary(c.Configuration)...)
+			}
 		}
 		if w.step == reviewStep {
 			lines = append(lines, "", "[ "+w.reviewAction()+" ]", "p preview plan · enter approve · esc edit")
@@ -256,6 +270,9 @@ func (w *wizard) componentLines(service application.ProjectService, contentWidth
 }
 
 func (w *wizard) compactComponentLines(service application.ProjectService) []string {
+	if w.step == connectionListStep || w.step == connectionTargetStep {
+		return w.compactConnectionLines()
+	}
 	if w.step == componentConfigurationStep {
 		return w.compactConfigurationLines()
 	}

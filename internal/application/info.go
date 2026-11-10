@@ -11,7 +11,7 @@ type AppInfo struct {
 func Info() AppInfo {
 	return AppInfo{
 		Name:    "ProvisionHub",
-		Version: "0.2.0-dev",
+		Version: "0.3.0-dev",
 		Tagline: "Developer Provisioning Toolkit",
 	}
 }

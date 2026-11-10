@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/ProvisionLabs/provisionhub/internal/application"
 	"github.com/ProvisionLabs/provisionhub/internal/configuration"
+	"github.com/ProvisionLabs/provisionhub/internal/connections"
 	"github.com/ProvisionLabs/provisionhub/internal/execution"
 	"github.com/ProvisionLabs/provisionhub/internal/planning"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
@@ -23,6 +24,8 @@ const (
 	componentTechnologyStep
 	componentNameStep
 	componentConfigurationStep
+	connectionListStep
+	connectionTargetStep
 	reviewStep
 	resultStep
 )
@@ -72,6 +75,14 @@ type wizard struct {
 	configurationDraft      project.Component
 	configurationTechnology string
 	configurationRequest    *configurationRequest
+	connections             []project.Connection
+	connectionCursor        int
+	editingConnection       int
+	connectionOptions       []connections.Option
+	connectionOptionCursor  int
+	connectionRequest       *connectionRequest
+	connectionDraft         project.Connection
+	configuringConnection   bool
 }
 
 func newWizard() (wizard, tea.Cmd) {

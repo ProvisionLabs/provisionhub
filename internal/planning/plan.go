@@ -4,7 +4,7 @@ package planning
 import (
 	"github.com/ProvisionLabs/provisionhub/internal/catalog"
 	"github.com/ProvisionLabs/provisionhub/internal/configuration"
-	"github.com/ProvisionLabs/provisionhub/internal/project"
+	"github.com/ProvisionLabs/provisionhub/internal/connections"
 )
 
 type Status string
@@ -21,6 +21,7 @@ const (
 	GenerateFrontend  OperationType = "generate_frontend"
 	IntegrateDatabase OperationType = "integrate_database"
 	GenerateFile      OperationType = "generate_file"
+	ConnectComponents OperationType = "connect_components"
 )
 
 type OperationStatus string
@@ -48,6 +49,7 @@ const (
 	InvalidOperation         DiagnosticCode = "invalid_operation"
 	InvalidPlugin            DiagnosticCode = "invalid_plugin"
 	InvalidConfiguration     DiagnosticCode = "invalid_configuration"
+	InvalidConnection        DiagnosticCode = "invalid_connection"
 	InvalidDependency        DiagnosticCode = "invalid_dependency"
 	DependencyCycle          DiagnosticCode = "dependency_cycle"
 )
@@ -55,15 +57,15 @@ const (
 // Plan separates successful construction from execution availability.
 // Collection fields are emitted as JSON arrays, including when empty.
 type Plan struct {
-	ProjectName          string               `json:"projectName"`
-	SpecificationVersion string               `json:"specificationVersion"`
-	Components           []Component          `json:"components,omitempty"`
-	Connections          []project.Connection `json:"connections,omitempty"`
-	Technologies         []Technology         `json:"technologies"`
-	Operations           []Operation          `json:"operations"`
-	Diagnostics          []Diagnostic         `json:"diagnostics"`
-	Status               Status               `json:"status"`
-	Executable           bool                 `json:"executable"`
+	ProjectName          string                 `json:"projectName"`
+	SpecificationVersion string                 `json:"specificationVersion"`
+	Components           []Component            `json:"components,omitempty"`
+	Connections          []connections.Resolved `json:"connections,omitempty"`
+	Technologies         []Technology           `json:"technologies"`
+	Operations           []Operation            `json:"operations"`
+	Diagnostics          []Diagnostic           `json:"diagnostics"`
+	Status               Status                 `json:"status"`
+	Executable           bool                   `json:"executable"`
 }
 
 type Component struct {
@@ -88,6 +90,7 @@ type Operation struct {
 	Type           OperationType   `json:"type"`
 	Technology     string          `json:"technology,omitempty"`
 	ComponentID    string          `json:"componentId,omitempty"`
+	ConnectionID   string          `json:"connectionId,omitempty"`
 	PluginID       string          `json:"pluginId,omitempty"`
 	PluginDigest   string          `json:"pluginDigest,omitempty"`
 	Source         string          `json:"source,omitempty"`

@@ -22,7 +22,7 @@ The TUI offers **Create Project**, **Plugins**, and **Settings**. Create Project
 Use `--component name:type:technology` once per component. Types are `backend`, `frontend`, or `database`. A generator must be available for every selected capability before applying.
 
 Plugins can declare configurable fields. Repeat `--set component.key=value` on
-plan or apply, for example `--set api.port=4001` with the official 1.2.0 source
+plan or apply, for example `--set api.port=4001` with the official 1.3.0 source
 plugins. TUI fields come from the same schema. Defaults, types, and constraints
 are validated independently for each component and appear in the reviewed plan.
 See the [configuration schema and authoring guide](docs/plugin-configuration.md).
@@ -41,7 +41,16 @@ provisionhub project apply --name commerce --path ./commerce \
 
 `project plan --output json` emits the same plan as structured JSON. `project apply` prints the plan and asks for literal `yes` in a terminal. Automation may pass `--yes` after reviewing the plan. The CLI does not install dependencies, start generated applications, or create Git repositories.
 
-Install managed official generators with `provisionhub plugin install official/nestjs` and `provisionhub plugin install official/nextjs`. `--plugin-version official/nestjs@1.1.0` selects a specific installed version; omit the flag only when selection is unambiguous. An explicit `--plugins` directory, or `PROVISIONHUB_PLUGINS`, can generate without opening SQLite when its definitions cover the requested generators. Managed installations use SQLite metadata for discovery and revalidate their artifacts before use. Optional configuration extends plugin manifests; package layout and integrity remain unchanged. Published 1.1.0 plugins remain compatible; configured 1.2.0 sources use local discovery until release. See the [plugin guide](docs/plugin-registry.md).
+Install managed official generators with `provisionhub plugin install official/nestjs` and `provisionhub plugin install official/nextjs`. `--plugin-version official/nestjs@1.1.0` selects a specific installed version; omit the flag only when selection is unambiguous. An explicit `--plugins` directory, or `PROVISIONHUB_PLUGINS`, can generate without opening SQLite when its definitions cover the requested generators. Managed installations use SQLite metadata for discovery and revalidate their artifacts before use. Optional configuration extends plugin manifests; package layout and integrity remain unchanged. Published 1.1.0 plugins remain compatible; configured 1.3.0 sources use local discovery until release. See the [plugin guide](docs/plugin-registry.md).
+
+## Component connections
+
+Connect named instances with `--connect web:api:http` and connection-specific
+settings such as `--connection-set web:api:http.serverHost=127.0.0.1`, using
+the official 1.3.0 local sources. The backend's configured port and an explicit
+consumer-reachable host produce private Next.js server environment configuration.
+The TUI manages compatible connections with `c` from Components. See the
+[connection contract, authoring guide, and multi-component examples](docs/component-connections.md).
 
 ## Persistent application state
 
@@ -56,4 +65,4 @@ SQLite remains for Settings, Git provider account metadata, and managed plugin i
 - [Development guide](docs/development.md)
 - [Development context](docs/development-context.md)
 
-Connection execution, database generation, infrastructure provisioning, and automatic project reconciliation remain outside the current scope. Historical [project management](docs/project-management.md), [project manifest](docs/project-manifest.md), and [project lock](docs/project-plugin-locking.md) guides describe retired workflows and are retained pending documentation cleanup.
+Database generation, infrastructure provisioning, and automatic project reconciliation remain outside the current scope. Connections generate application configuration; they do not establish runtime networking. Historical [project management](docs/project-management.md), [project manifest](docs/project-manifest.md), and [project lock](docs/project-plugin-locking.md) guides describe retired workflows and are retained pending documentation cleanup.

@@ -36,6 +36,15 @@ CLI commands accept `--plugins <directory>`. Both interfaces also honor `PROVISI
 
 See [generation planning](../generation-planning.md) for plan semantics and [ADR-0006](../adr/0006-declarative-local-generation.md) for the initial execution decision.
 
+## Connection capabilities
+
+Optional `connections.provides` and `connections.consumes` now declare data
+capabilities, metadata bindings/requirements, typed connection options, and
+connection-owned file sets. The [connection contract and authoring guide](../component-connections.md)
+specifies matching, cardinality, integration template scopes, path restrictions,
+packaging/integrity, and runtime boundaries. Configured connection packages
+require core compatibility 0.3.0. No framework pair is registered in Go.
+
 ## Future composition
 
-[ADR-0005](../adr/0005-plugin-composition.md) still governs the broader direction: configuration inputs are implemented as flat plugin-defined schemas; future plugins may express requirements, dependencies, compatibility ranges, and provider operations. Static declarative distribution is defined by [ADR-0009](../adr/0009-static-plugin-registry.md); runtime transport, cross-language execution, a general resolver, third-party publishing and sandboxing remain separate decisions. Mandatory gRPC from [ADR-0002](../adr/0002-grpc-plugin-contract.md) remains superseded. A registry or website connection is never required for local project generation.
+[ADR-0005](../adr/0005-plugin-composition.md) still governs the broader direction. Scalar configuration and connection capability requirements are implemented; general package dependency solving, runtime transports, cross-language execution, third-party publishing, and sandboxing remain separate decisions. Static declarative distribution follows [ADR-0009](../adr/0009-static-plugin-registry.md). Mandatory gRPC from [ADR-0002](../adr/0002-grpc-plugin-contract.md) remains superseded. A registry or website connection is never required for local project generation.

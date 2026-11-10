@@ -32,6 +32,7 @@ type File struct {
 }
 
 type Manifest struct {
+	Connections   ConnectionContract   `yaml:"connections,omitempty"`
 	Configuration configuration.Schema `yaml:"configuration,omitempty"`
 	APIVersion    string               `yaml:"apiVersion"`
 	ID            string               `yaml:"id"`
@@ -137,18 +138,36 @@ func loadPluginFolder(root *os.Root, folder string, technologies catalog.Catalog
 	if technology.Name != m.Name {
 		return Manifest{}, false, fmt.Errorf("plugin %q changes catalog display name for %q", m.ID, m.TechnologyID)
 	}
-	for i := range m.Files {
-		content, err := readLocalFile(root, m.Files[i].Source)
-		if err != nil {
-			return Manifest{}, false, fmt.Errorf("plugin %q file %q: %w", m.ID, m.Files[i].Source, err)
-		}
-		if m.Files[i].Type == "template" {
-			if err := validateTemplate(content, m.Configuration); err != nil {
-				return Manifest{}, false, fmt.Errorf("plugin %q file %q: %w", m.ID, m.Files[i].Source, err)
+	loadFiles := func(files []File, consumer *Consumer) error {
+		for i := range files {
+			content, err := readLocalFile(root, files[i].Source)
+			if err != nil {
+				return fmt.Errorf("plugin %q file %q: %w", m.ID, files[i].Source, err)
 			}
+			if files[i].Type == "template" {
+				var err error
+				if consumer == nil {
+					err = validateTemplate(content, m.Configuration)
+				} else {
+					err = validateIntegrationTemplate(content, m.Configuration, *consumer)
+				}
+				if err != nil {
+					return fmt.Errorf("plugin %q file %q: %w", m.ID, files[i].Source, err)
+				}
+			}
+			files[i].Content = content
+			files[i].Digest = sha256.Sum256(content)
 		}
-		m.Files[i].Content = content
-		m.Files[i].Digest = sha256.Sum256(content)
+		return nil
+	}
+	if err := loadFiles(m.Files, nil); err != nil {
+		return Manifest{}, false, err
+	}
+	for i := range m.Connections.Consumes {
+		consumer := &m.Connections.Consumes[i]
+		if err := loadFiles(consumer.Files, consumer); err != nil {
+			return Manifest{}, false, err
+		}
 	}
 	return m, true, nil
 }
@@ -186,8 +205,12 @@ func parse(data []byte) (Manifest, error) {
 	if err := m.Configuration.Validate(); err != nil {
 		return m, err
 	}
+	if err := m.ValidateConnections(); err != nil {
+		return m, err
+	}
+	sortContract(&m.Connections)
 	paths := map[string]bool{}
-	for _, file := range m.Files {
+	for _, file := range m.AllFiles() {
 		if err := validatePath(file.Source); err != nil {
 			return m, fmt.Errorf("invalid source %q: %w", file.Source, err)
 		}
@@ -215,6 +238,9 @@ func parse(data []byte) (Manifest, error) {
 		paths[key] = true
 	}
 	slices.SortFunc(m.Files, func(a, b File) int { return strings.Compare(a.Destination, b.Destination) })
+	for i := range m.Connections.Consumes {
+		slices.SortFunc(m.Connections.Consumes[i].Files, func(a, b File) int { return strings.Compare(a.Destination, b.Destination) })
+	}
 	return m, nil
 }
 
