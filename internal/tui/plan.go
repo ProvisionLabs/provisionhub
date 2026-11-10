@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -14,6 +15,20 @@ func (w *wizard) planLines(width int) []string {
 		"Status: " + string(w.plan.Status),
 		"Execution: " + planExecutionLabel(w.plan.Executable),
 		"", "Selected Technologies:",
+	}
+	if len(w.plan.Connections) > 0 {
+		lines = append(lines, "", "Connections:")
+		for _, connection := range w.plan.Connections {
+			lines = append(lines, fmt.Sprintf("  %s -> %s (%s)", connection.From, connection.To, connection.Type))
+			lines = append(lines, configurationSummary(connection.Configuration)...)
+			if len(connection.Metadata) > 0 {
+				data, _ := json.Marshal(connection.Metadata)
+				lines = append(lines, "    Target metadata: "+string(data))
+			}
+			for _, output := range connection.Outputs {
+				lines = append(lines, "    Output: "+output)
+			}
+		}
 	}
 	if len(w.plan.Components) > 0 {
 		lines = append(lines, "", "Components:")

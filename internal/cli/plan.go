@@ -71,6 +71,26 @@ func formatPlan(plan planning.Plan) string {
 			}
 		}
 	}
+	if len(plan.Connections) > 0 {
+		fmt.Fprintln(&out, "\nConnections:")
+		for _, connection := range plan.Connections {
+			fmt.Fprintf(&out, "  %s -> %s (%s)\n", connection.From, connection.To, connection.Type)
+			if connection.ConsumerID != "" {
+				fmt.Fprintf(&out, "    Capabilities: %s consumes %s\n", connection.ConsumerID, connection.ProviderID)
+			}
+			if len(connection.Configuration) > 0 {
+				data, _ := json.Marshal(connection.Configuration)
+				fmt.Fprintf(&out, "    Configuration: %s\n", data)
+			}
+			if len(connection.Metadata) > 0 {
+				data, _ := json.Marshal(connection.Metadata)
+				fmt.Fprintf(&out, "    Target metadata: %s\n", data)
+			}
+			for _, output := range connection.Outputs {
+				fmt.Fprintf(&out, "    Output: %s\n", output)
+			}
+		}
+	}
 	fmt.Fprintln(&out, "\nSelected Technologies:")
 	for _, technology := range plan.Technologies {
 		fmt.Fprintf(&out, "  %s: %s (%s)\n", technology.Category, technology.Name, technology.ID)

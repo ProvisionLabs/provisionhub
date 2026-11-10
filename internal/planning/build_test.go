@@ -59,13 +59,8 @@ func TestBuildNamesUnavailableComponentInstances(t *testing.T) {
 				{Name: "billing", Type: "backend", Technology: "nestjs"},
 				{Name: "api", Type: "backend", Technology: "nestjs"},
 			},
-			Connections: []project.Connection{{From: "api", To: "billing", Type: "http"}},
 		}}
 	plan := Build(manifest, catalog.Builtin())
-	encoded, err := json.Marshal(plan)
-	if err != nil || !strings.Contains(string(encoded), `"connections":[{"from":"api","to":"billing","type":"http"}]`) {
-		t.Fatalf("connection JSON = %s, %v", encoded, err)
-	}
 	if plan.Executable || len(plan.Components) != 2 || len(plan.Operations) != 2 || len(plan.Diagnostics) != 2 {
 		t.Fatalf("unexpected plan: %+v", plan)
 	}
@@ -74,6 +69,16 @@ func TestBuildNamesUnavailableComponentInstances(t *testing.T) {
 		if plan.Components[i].ID != id || plan.Operations[i].ID != id || plan.Operations[i].ComponentID != id || plan.Diagnostics[i].ComponentID != id {
 			t.Fatalf("component %s lost its identity: %+v", name, plan)
 		}
+	}
+	connected := manifest
+	connected.Spec.Connections = []project.Connection{{From: "api", To: "billing", Type: "http"}}
+	unsupported := Build(connected, catalog.Builtin())
+	encoded, err := json.Marshal(unsupported)
+	if err != nil || !strings.Contains(string(encoded), `"connections":[{"from":"api","to":"billing","type":"http"}]`) {
+		t.Fatal(string(encoded), err)
+	}
+	if unsupported.Executable || len(unsupported.Operations) != 0 || len(unsupported.Diagnostics) != 1 || unsupported.Diagnostics[0].Code != InvalidConnection {
+		t.Fatal(unsupported)
 	}
 	manifest.Spec.Components[0].Technology = "nextjs"
 	invalid := Build(manifest, catalog.Builtin())

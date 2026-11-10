@@ -3,10 +3,12 @@ package planning
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/ProvisionLabs/provisionhub/internal/catalog"
 	"github.com/ProvisionLabs/provisionhub/internal/configuration"
+	"github.com/ProvisionLabs/provisionhub/internal/connections"
 	"github.com/ProvisionLabs/provisionhub/internal/plugins"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
 )
@@ -23,6 +25,9 @@ func BuildWithPlugins(manifest project.Specification, technologies catalog.Catal
 		ProjectName: manifest.Metadata.Name, SpecificationVersion: manifest.APIVersion,
 		Technologies: []Technology{}, Operations: []Operation{}, Diagnostics: []Diagnostic{}, Status: StatusInvalid,
 	}
+	for _, c := range manifest.CanonicalConnections() {
+		plan.Connections = append(plan.Connections, connections.Resolved{Connection: c})
+	}
 	if err := manifest.Validate(); err != nil {
 		plan.Diagnostics = append(plan.Diagnostics, Diagnostic{Severity: SeverityError, Code: InvalidSpecification, Message: err.Error()})
 		return finalizePlan(plan)
@@ -30,7 +35,6 @@ func BuildWithPlugins(manifest project.Specification, technologies catalog.Catal
 	components := manifest.CanonicalComponents()
 	if manifest.UsesComponents() {
 		plan.Components = []Component{}
-		plan.Connections = manifest.CanonicalConnections()
 	}
 	var ids []string
 	for _, component := range components {
@@ -88,6 +92,34 @@ func BuildWithPlugins(manifest project.Specification, technologies catalog.Catal
 	if len(plan.Diagnostics) > 0 {
 		return finalizePlan(plan)
 	}
+	if manifest.UsesComponents() {
+		for _, component := range components {
+			plugin, exists := loaded.ForTechnology(component.Technology)
+			var values configuration.Values
+			if exists {
+				values = component.Configuration
+			}
+			plan.Components = append(plan.Components, Component{
+				ID: component.ID(), Name: component.Name, Type: catalog.Category(component.Type),
+				Technology: component.Technology, PluginID: plugin.ID, Configuration: values,
+			})
+		}
+	}
+	resolved, err := connections.Resolve(components, manifest.CanonicalConnections(), loaded)
+	if err != nil {
+		code := InvalidConnection
+		if errors.Is(err, connections.ErrCycle) {
+			code = DependencyCycle
+		}
+		plan.Diagnostics = append(plan.Diagnostics, Diagnostic{Severity: SeverityError, Code: code, Field: "spec.connections", Message: err.Error()})
+		return finalizePlan(plan)
+	}
+	plan.Connections = resolved
+	connectionOperations, err := buildConnectionOperations(manifest.Metadata.Name, components, resolved, loaded)
+	if err != nil {
+		plan.Diagnostics = append(plan.Diagnostics, Diagnostic{Severity: SeverityError, Code: InvalidConnection, Field: "spec.connections", Message: err.Error()})
+		return finalizePlan(plan)
+	}
 	plan.Status = StatusPlanned
 	for i, technology := range plan.Technologies {
 		component := components[i]
@@ -100,6 +132,11 @@ func BuildWithPlugins(manifest project.Specification, technologies catalog.Catal
 		operation := Operation{
 			ID: operationID, Technology: technology.ID, ComponentID: componentID,
 			TargetPaths: []string{}, Dependencies: []string{}, Status: OperationUnavailable,
+		}
+		for _, connection := range resolved {
+			if connection.From == component.Name {
+				operation.Dependencies = append(operation.Dependencies, "component/"+connection.To)
+			}
 		}
 		var message string
 		switch technology.Category {
@@ -116,14 +153,11 @@ func BuildWithPlugins(manifest project.Specification, technologies catalog.Catal
 			}
 			message = fmt.Sprintf("No database integration provider is registered for %s.", technology.Name)
 		}
-		planComponent := Component{ID: component.ID(), Name: component.Name, Type: technology.Category, Technology: technology.ID}
 		if plugin, ok := loaded.ForTechnology(technology.ID); ok &&
 			(technology.Category == catalog.Backend || technology.Category == catalog.Frontend) {
 			operation.Status = OperationSupported
 			operation.PluginID = plugin.ID
 			operation.PluginDigest = hex.EncodeToString(plugin.Digest[:])
-			planComponent.PluginID = plugin.ID
-			planComponent.Configuration = component.Configuration
 			for _, file := range plugin.Files {
 				renderedDigest := renderedDigests[component.ID()][file.Destination]
 				target := plugins.DestinationFor(component, file)
@@ -146,9 +180,7 @@ func BuildWithPlugins(manifest project.Specification, technologies catalog.Catal
 			})
 		}
 		plan.Operations = append(plan.Operations, operation)
-		if manifest.UsesComponents() {
-			plan.Components = append(plan.Components, planComponent)
-		}
 	}
+	plan.Operations = append(plan.Operations, connectionOperations...)
 	return finalizePlan(plan)
 }

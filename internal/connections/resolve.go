@@ -17,10 +17,10 @@ var ErrCycle = errors.New("connection generation dependency cycle")
 
 type Resolved struct {
 	project.Connection
-	ProviderID string               `json:"providerId"`
-	ConsumerID string               `json:"consumerId"`
-	Metadata   configuration.Values `json:"metadata"`
-	Outputs    []string             `json:"outputs"`
+	ProviderID string               `json:"providerId,omitempty"`
+	ConsumerID string               `json:"consumerId,omitempty"`
+	Metadata   configuration.Values `json:"metadata,omitempty"`
+	Outputs    []string             `json:"outputs,omitempty"`
 }
 
 func (r Resolved) OperationID() string { return "connection/" + r.ID() }
