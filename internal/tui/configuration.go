@@ -75,7 +75,7 @@ func (w *wizard) focusConfiguration() tea.Cmd {
 	w.configurationInput = textinput.New()
 	w.configurationInput.Prompt = ""
 	w.configurationInput.CharLimit = 1 << 20
-	w.configurationInput.SetWidth(max(4, min(w.width-28, 48)))
+	w.configurationInput.SetWidth(max(1, min(w.width-4, 48)))
 	w.configurationInput.SetValue(w.configurationRaw[w.configurationKeys[w.configurationCursor]])
 	p := w.configurationSchema.Properties[w.configurationKeys[w.configurationCursor]]
 	if p.Type == "string" || p.Type == "integer" {
@@ -238,4 +238,26 @@ func configurationSummary(values configuration.Values) []string {
 	}
 	data, _ := json.Marshal(values)
 	return []string{"    Configuration: " + string(data)}
+}
+
+// Keep the active control and its validation error visible on small terminals.
+func (w *wizard) compactConfigurationLines() []string {
+	if w.configurationRequest != nil {
+		return []string{"Loading configuration…", "esc back"}
+	}
+	key := w.configurationKeys[w.configurationCursor]
+	p := w.configurationSchema.Properties[key]
+	label := p.Label
+	if label == "" {
+		label = key
+	}
+	value := w.configurationRaw[key]
+	if p.Type == "string" || p.Type == "integer" {
+		value = w.configurationInput.View()
+	}
+	lines := []string{label, "> " + value}
+	if w.err != "" {
+		lines = append(lines, "Error: "+w.err)
+	}
+	return append(lines, fmt.Sprintf("%s %d/%d", w.configurationDraft.Name, w.configurationCursor+1, len(w.configurationKeys)), "enter next · esc back")
 }

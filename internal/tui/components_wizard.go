@@ -256,6 +256,9 @@ func (w *wizard) componentLines(service application.ProjectService, contentWidth
 }
 
 func (w *wizard) compactComponentLines(service application.ProjectService) []string {
+	if w.step == componentConfigurationStep {
+		return w.compactConfigurationLines()
+	}
 	return w.componentLines(service, 32)
 }
 

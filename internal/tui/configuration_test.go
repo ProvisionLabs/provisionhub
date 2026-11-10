@@ -81,6 +81,12 @@ func TestWizardDynamicConfigurationEditReviewAndGenerate(t *testing.T) {
 	if !strings.Contains(m.wizard.err, "at most") || m.wizard.configurationCursor != 2 {
 		t.Fatal(m.wizard.err)
 	}
+	m.Update(tea.WindowSizeMsg{Width: 20, Height: 5})
+	// The cursor adds ANSI styling around the final digit.
+	if !strings.Contains(m.View().Content, "7000") || !strings.Contains(m.View().Content, "Error:") {
+		t.Fatal("compact configuration hid input/error", m.View().Content)
+	}
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m.wizard.configurationInput.SetValue("4000")
 	m.wizard.configurationRaw["port"] = "4000"
 	press(m, tea.KeyEnter, "")  // string

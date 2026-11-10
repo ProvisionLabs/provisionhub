@@ -306,10 +306,7 @@ func (m *Model) compactView(width, height int) string {
 		lines = lines[:height]
 	}
 	for i := range lines {
-		runes := []rune(lines[i])
-		if len(runes) > width {
-			lines[i] = string(runes[:width])
-		}
+		lines[i] = lipgloss.NewStyle().MaxWidth(width).Render(lines[i])
 	}
 	return strings.Join(lines, "\n")
 }

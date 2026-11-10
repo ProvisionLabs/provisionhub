@@ -103,7 +103,7 @@ func (w *wizard) resize(width, height int) {
 	w.name.SetWidth(inputWidth)
 	w.destination.SetWidth(inputWidth)
 	w.componentName.SetWidth(inputWidth)
-	w.configurationInput.SetWidth(inputWidth)
+	w.configurationInput.SetWidth(max(1, min(width-4, 48)))
 }
 
 func (w *wizard) focusField(index int) tea.Cmd {
