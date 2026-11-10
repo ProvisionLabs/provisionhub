@@ -21,6 +21,11 @@ func newTestModel(t *testing.T) *Model {
 
 func press(m *Model, code rune, text string) tea.Cmd {
 	_, cmd := m.Update(tea.KeyPressMsg{Code: code, Text: text})
+	// Deliver asynchronous schema lookup results as the Bubble Tea runtime does.
+	if cmd != nil && m.wizard.configurationRequest != nil {
+		m.Update(cmd())
+		return nil
+	}
 	return cmd
 }
 

@@ -19,12 +19,18 @@ func (w *wizard) componentCategoryValue() catalog.Category {
 }
 
 func (w *wizard) beginComponentEdit(index int, service application.ProjectService) {
+	w.configurationRaw = nil
+	w.configurationKeys = nil
+	w.configurationTechnology = ""
+	w.configurationRequest = nil
+	w.configurationDraft = project.Component{}
 	w.editingComponent = index
 	w.componentCategory = 0
 	w.componentTechnology = 0
 	w.componentName.SetValue("")
 	if index >= 0 {
 		component := w.components[index]
+		w.configurationDraft = component
 		for i, category := range componentCategories {
 			if string(category) == component.Type {
 				w.componentCategory = i
@@ -131,20 +137,15 @@ func (w *wizard) updateComponents(msg tea.KeyPressMsg, service application.Proje
 			}
 			options := service.Technologies(w.componentCategoryValue())
 			component := project.Component{Name: name, Type: string(w.componentCategoryValue()), Technology: options[w.componentTechnology].ID}
-			if w.editingComponent >= 0 {
-				w.components[w.editingComponent] = component
-				w.componentCursor = w.editingComponent
-			} else {
-				w.components = append(w.components, component)
-				w.componentCursor = len(w.components) - 1
-			}
 			w.componentName.Blur()
-			w.step = componentListStep
+			return w.beginConfiguration(component, service), false
 		default:
 			var cmd tea.Cmd
 			w.componentName, cmd = w.componentName.Update(msg)
 			return cmd, false
 		}
+	case componentConfigurationStep:
+		return w.updateConfiguration(msg), false
 	case reviewStep:
 		switch key {
 		case "esc":
@@ -227,10 +228,13 @@ func (w *wizard) componentLines(service application.ProjectService, contentWidth
 		}
 	case componentNameStep:
 		lines = append(lines, "Component name:", "> "+w.componentName.View())
+	case componentConfigurationStep:
+		lines = append(lines, w.configurationLines()...)
 	case reviewStep, resultStep:
 		lines = append(lines, "Project: "+w.name.Value(), "Destination: "+fitTail(w.destination.Value(), contentWidth-13), "", "Components:")
 		for _, component := range w.components {
 			lines = append(lines, fmt.Sprintf("  %s  %s  %s", component.Name, component.Type, service.TechnologyName(component.Technology)))
+			lines = append(lines, configurationSummary(component.Configuration)...)
 		}
 		if w.step == reviewStep {
 			lines = append(lines, "", "[ "+w.reviewAction()+" ]", "p preview plan · enter approve · esc edit")

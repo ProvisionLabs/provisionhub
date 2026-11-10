@@ -120,6 +120,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.wizard.created(msg)
 	case projectAppliedMsg:
 		m.wizard.applied(msg)
+	case configurationLoadedMsg:
+		if m.nav.current == createProject {
+			return m, m.wizard.configurationLoaded(msg)
+		}
 	case tea.KeyPressMsg:
 		if m.nav.current == createProject && m.wizard.applying {
 			return m, nil
@@ -151,7 +155,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, cmd
 		}
-		if m.nav.current == createProject && (m.wizard.step == projectInfoStep || m.wizard.step == componentNameStep) {
+		if m.nav.current == createProject && (m.wizard.step == projectInfoStep || m.wizard.step == componentNameStep || m.wizard.step == componentConfigurationStep) {
 			cmd, back := m.wizard.update(msg, m.service)
 			if back {
 				m.nav.back()

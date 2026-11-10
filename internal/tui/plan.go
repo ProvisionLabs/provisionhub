@@ -19,6 +19,7 @@ func (w *wizard) planLines(width int) []string {
 		lines = append(lines, "", "Components:")
 		for _, component := range w.plan.Components {
 			lines = append(lines, fmt.Sprintf("  %s: %s (%s)", component.ID, component.Name, component.Technology))
+			lines = append(lines, configurationSummary(component.Configuration)...)
 		}
 	}
 	for _, technology := range w.plan.Technologies {
