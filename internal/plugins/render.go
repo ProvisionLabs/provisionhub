@@ -49,8 +49,11 @@ func reference(ref string, schema configuration.Schema) (key, escape string, err
 	if !ok {
 		return "", "", fmt.Errorf("undeclared template reference config.%s", key)
 	}
-	if escape != "" && escape != "json" && escape != "html" {
+	if escape != "" && escape != "json" && escape != "html" && escape != "host" {
 		return "", "", fmt.Errorf("unsupported template escape %q", escape)
+	}
+	if escape == "host" && (p.Type != "string" || p.Format != "host") {
+		return "", "", fmt.Errorf("|host requires a string property with format: host")
 	}
 	if (p.Type == "string" || p.Type == "enum") && escape == "" {
 		return "", "", fmt.Errorf("template reference config.%s requires |json or |html escaping", key)
@@ -108,6 +111,9 @@ func renderScalar(ref string, schema configuration.Schema, values configuration.
 	}
 	if escape == "html" {
 		return html.EscapeString(fmt.Sprint(value)), nil
+	}
+	if escape == "host" {
+		return configuration.HostLiteral(value.(string))
 	}
 	data, err := json.Marshal(value)
 	return string(data), err

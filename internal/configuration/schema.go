@@ -18,6 +18,7 @@ type Schema struct {
 
 type Property struct {
 	Type        string   `yaml:"type"`
+	Format      string   `yaml:"format,omitempty"`
 	Label       string   `yaml:"label,omitempty"`
 	Description string   `yaml:"description,omitempty"`
 	Required    bool     `yaml:"required,omitempty"`
@@ -46,6 +47,9 @@ func (s Schema) Validate() error {
 		case "string", "boolean", "integer", "enum":
 		default:
 			return fail("type must be string, boolean, integer, or enum")
+		}
+		if p.Format != "" && (p.Type != "string" || p.Format != "host") {
+			return fail("format supports only host on string properties")
 		}
 		if p.Type == "enum" {
 			if len(p.Options) == 0 {
@@ -99,6 +103,11 @@ func (p Property) ValidateValue(value any) (any, error) {
 		}
 		if !utf8.ValidString(v) {
 			return nil, fmt.Errorf("string must be valid UTF-8")
+		}
+		if p.Format == "host" {
+			if _, err := HostLiteral(v); err != nil {
+				return nil, err
+			}
 		}
 		if p.Type == "enum" && !slices.Contains(p.Options, v) {
 			return nil, fmt.Errorf("expected one of %v", p.Options)
