@@ -65,6 +65,10 @@ func formatPlan(plan planning.Plan) string {
 		fmt.Fprintln(&out, "\nComponents:")
 		for _, component := range plan.Components {
 			fmt.Fprintf(&out, "  %s: %s (%s, %s)\n", component.ID, component.Name, component.Type, component.Technology)
+			if len(component.Configuration) > 0 {
+				data, _ := json.Marshal(component.Configuration)
+				fmt.Fprintf(&out, "    Configuration: %s\n", data)
+			}
 		}
 	}
 	fmt.Fprintln(&out, "\nSelected Technologies:")

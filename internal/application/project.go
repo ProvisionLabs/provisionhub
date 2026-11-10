@@ -2,6 +2,7 @@ package application
 
 import (
 	"fmt"
+	"maps"
 	"os"
 
 	"github.com/ProvisionLabs/provisionhub/internal/catalog"
@@ -72,6 +73,9 @@ func (s ProjectService) ValidateComponentsInput(name, destination string, compon
 	}
 	spec := project.Specification{APIVersion: project.APIVersion, Kind: project.Kind,
 		Metadata: project.Metadata{Name: name}, Spec: project.Spec{Components: append([]project.Component{}, components...)}}
+	for i := range spec.Spec.Components {
+		spec.Spec.Components[i].Configuration = maps.Clone(spec.Spec.Components[i].Configuration)
+	}
 	if err := spec.Validate(); err != nil {
 		return project.Specification{}, err
 	}
