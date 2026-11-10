@@ -29,3 +29,17 @@ resolved values; use `p` to inspect complete summaries on small terminals.
 Configuration screens keep the active control and error visible in compact
 layouts. Values remain in memory for this creation session. See the
 [configuration contract](plugin-configuration.md).
+
+From Components, `c` opens Connections. Use `a` to add, `e` to edit, or `d` to
+remove a declaration. The asynchronous selector shows compatible named source
+and target pairs, excluding unsupported/ambiguous capabilities, duplicate or
+occupied slots, and cycles. Enter opens the same dynamic scalar form used for
+components; no-option connections save directly. Required hosts are validated
+without network access. Esc returns to target selection with the current draft;
+changing the target starts its configuration afresh.
+
+Enter/Esc from Connections returns to Components, then Enter opens Review.
+Renaming a component updates references; deleting it removes related
+connections with feedback. Review and `p` preview show connections, resolved
+values, target metadata, and integration output paths. Changed connection data
+invalidates approval. See the [connection guide](component-connections.md).

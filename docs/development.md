@@ -26,6 +26,22 @@ CI runs these checks on Windows, Linux, and macOS. Tests drive Bubble Tea models
 
 To exercise the official NestJS and Next.js definitions from a sibling checkout, set `PROVISIONHUB_OFFICIAL_PLUGINS` to its `plugins` directory and run the official package lifecycle test in `internal/application`. Core CI does not require that checkout. See [generation planning](generation-planning.md), [CLI reference](cli-reference.md), and [plugin registry](plugin-registry.md).
 
+## Connection development
+
+Connection resolution uses local provider/consumer fixtures, the shared scalar
+resolver, and existing literal rendering. Tests cover instance selection,
+metadata types, ambiguity, required options, cycles, dependency ordering,
+read-only planning, review freshness, CLI/TUI editing, and execution safeguards.
+The optional official lifecycle also checks connection inputs for managed
+integrity and confirms no saved-project registrations.
+
+The official repository's offline `tests/connections.test.mjs` checks shared
+and distinct targets with no npm/network access. Its separate
+`tests/connections-runtime.test.mjs` explicitly installs/builds apps and checks
+real Next.js-to-NestJS HTTP requests. Set `PROVISIONHUB_BIN` to a built absolute
+binary path before running Node tests. Runtime probes are temporary test routes,
+not plugin-generated application features. See [connections](component-connections.md).
+
 ## Settings and authentication development
 
 SQLite uses `modernc.org/sqlite` without CGO. The native credential vault uses `github.com/zalando/go-keyring`: macOS needs `security`, Linux needs a session D-Bus/Secret Service, and Windows uses Credential Manager. Tests mock HTTP and vault interfaces. Do not put live tokens in fixtures.

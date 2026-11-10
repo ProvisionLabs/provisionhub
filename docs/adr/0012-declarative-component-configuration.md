@@ -1,6 +1,7 @@
 # ADR-0012: Declarative component configuration
 
 - Status: Accepted
+- Extended by [ADR-0013](0013-component-connections.md) for connection-owned file sets; general template conditionals remain unsupported
 - Date: 2026-11-10
 - Owners: ProvisionHub Core Team
 - Extends: [ADR-0005](0005-plugin-composition.md) and [ADR-0011](0011-one-time-project-generation.md)

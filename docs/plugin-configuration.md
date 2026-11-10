@@ -95,7 +95,7 @@ It exists only in the in-memory specification and review plan.
 | `{{config.port}}` | Decimal integer |
 
 Enum values are strings and require `json` or `html`. These modes are also
-accepted for booleans and integers. No other filters, whitespace variants,
+accepted for booleans and integers. Apart from the bounded host mode below, no other filters, whitespace variants,
 functions, loops, includes, or conditionals are supported. Use a JSON literal
 as a whole value, without adding surrounding quotes. For example:
 
@@ -117,6 +117,17 @@ literal data; expansion is a single pass. `copy` files remain byte-for-byte.
 The planner renders in memory to validate references and record content hashes;
 it writes no output and runs no commands. Apply reloads inputs, resolves and
 renders with the same functions, and requires the reviewed plan to match.
+
+## Connection options
+
+Core 0.3.0 extends this shared scalar schema to provider metadata requirements
+and connection-specific settings. String properties may declare `format: host`
+for DNS/IPv4/IPv6 syntax validation without lookups, and use `|host` to render
+a URI host with IPv6 brackets. Unknown formats and use on non-string properties
+are rejected. Existing JSON/HTML escaping remains available. Connection-scoped
+files add fixed `connection` and `target` scopes; see the
+[connection contract](component-connections.md). A host's syntax does not prove
+network reachability.
 
 ## Author workflow
 

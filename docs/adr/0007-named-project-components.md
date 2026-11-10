@@ -1,6 +1,7 @@
 # ADR-0007: Named project components
 
 - Status: Amended by [ADR-0011](0011-one-time-project-generation.md); named components remain, project YAML persistence is retired
+- Connection behavior extended by [ADR-0013](0013-component-connections.md); the metadata-only connection text below is historical
 - Date: 2026-10-30
 - Owners: ProvisionHub Core Team
 - Extends: [ADR-0005](0005-plugin-composition.md) and [ADR-0006](0006-declarative-local-generation.md)
