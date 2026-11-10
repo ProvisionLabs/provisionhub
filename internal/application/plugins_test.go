@@ -267,7 +267,7 @@ func TestInstalledCompatibilitySurvivesOfflineRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if item.MinimumCoreVersion != registry.CoreVersion {
+	if item.MinimumCoreVersion != index.Plugins[0].Versions[0].MinimumCoreVersion {
 		t.Fatal("compatibility not persisted", item)
 	}
 	item.MinimumCoreVersion = "9.0.0"

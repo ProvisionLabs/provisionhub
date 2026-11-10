@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ProvisionLabs/provisionhub/internal/configuration"
 	"github.com/ProvisionLabs/provisionhub/internal/plugins"
 	"github.com/ProvisionLabs/provisionhub/internal/project"
 	"github.com/ProvisionLabs/provisionhub/internal/registry"
@@ -60,6 +61,11 @@ func TestOfficialPackageLifecycle(t *testing.T) {
 	restarted.pluginManager = &manager
 	destination := filepath.Join(t.TempDir(), "multi component café")
 	components := []project.Component{{Name: "api", Type: "backend", Technology: "nestjs"}, {Name: "billing", Type: "backend", Technology: "nestjs"}, {Name: "web", Type: "frontend", Technology: "nextjs"}, {Name: "admin", Type: "frontend", Technology: "nextjs"}}
+	configured := len(manifests[0].Configuration.Properties) > 0 && len(manifests[1].Configuration.Properties) > 0
+	if configured {
+		components[0].Configuration = configuration.Values{"greeting": "Welcome", "port": 4001}
+		components[3].Configuration = configuration.Values{"welcomeMessage": "Administration", "showCredits": false}
+	}
 	manifest, err := restarted.ValidateComponentsInput("demo", destination, components)
 	if err != nil {
 		t.Fatal(err)
@@ -128,6 +134,14 @@ func TestOfficialPackageLifecycle(t *testing.T) {
 	for _, name := range []string{"api/src/main.ts", "billing/src/app.module.ts", "web/src/app/page.tsx", "admin/src/app/layout.tsx"} {
 		if _, err := os.Stat(filepath.Join(destination, filepath.FromSlash(name))); err != nil {
 			t.Fatal(err)
+		}
+	}
+	if configured {
+		for name, want := range map[string]string{"api/src/main.ts": "process.env.PORT ?? 4001", "billing/src/main.ts": "process.env.PORT ?? 3000", "api/src/app.service.ts": `"Welcome" + ' from api!'`, "billing/src/app.service.ts": `"Hello" + ' from billing!'`, "admin/src/app/page.tsx": "false &&", "web/src/app/page.tsx": "true &&"} {
+			data, err := os.ReadFile(filepath.Join(destination, filepath.FromSlash(name)))
+			if err != nil || !strings.Contains(string(data), want) {
+				t.Fatal(name, string(data), err)
+			}
 		}
 	}
 	if err := manager.Remove(context.Background(), "official/nestjs", manifests[0].Version); err != nil {

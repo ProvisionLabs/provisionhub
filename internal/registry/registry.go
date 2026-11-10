@@ -17,7 +17,7 @@ import (
 )
 
 const OfficialURL = "https://raw.githubusercontent.com/ProvisionLabs/provisionhub-official-plugins/main/registry.json"
-const CoreVersion = "0.1.0"
+const CoreVersion = "0.2.0"
 
 type Index struct {
 	SchemaVersion int      `json:"schemaVersion"`
