@@ -7,6 +7,7 @@ The Go module has one CLI/TUI executable in `cmd/provisionhub`. Core packages ar
 | `application` | Shared validation, plugin selection, planning, and apply coordination |
 | `project` | In-memory specification and destination validation |
 | `catalog` | Technology IDs, categories, and compatibility |
+| `configuration` | Pure schema validation, typed parsing, and per-component default resolution |
 | `planning` | Deterministic operation graph and diagnostics |
 | `execution` | Reviewed, no-overwrite local file publication |
 | `plugins` | Declarative plugin manifests, templates, and local discovery |

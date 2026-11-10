@@ -21,6 +21,12 @@ The TUI offers **Create Project**, **Plugins**, and **Settings**. Create Project
 
 Use `--component name:type:technology` once per component. Types are `backend`, `frontend`, or `database`. A generator must be available for every selected capability before applying.
 
+Plugins can declare configurable fields. Repeat `--set component.key=value` on
+plan or apply, for example `--set api.port=4001` with the official 1.2.0 source
+plugins. TUI fields come from the same schema. Defaults, types, and constraints
+are validated independently for each component and appear in the reviewed plan.
+See the [configuration schema and authoring guide](docs/plugin-configuration.md).
+
 ```sh
 provisionhub technologies list
 provisionhub project plan --name commerce --path ./commerce \
@@ -35,7 +41,7 @@ provisionhub project apply --name commerce --path ./commerce \
 
 `project plan --output json` emits the same plan as structured JSON. `project apply` prints the plan and asks for literal `yes` in a terminal. Automation may pass `--yes` after reviewing the plan. The CLI does not install dependencies, start generated applications, or create Git repositories.
 
-Install managed official generators with `provisionhub plugin install official/nestjs` and `provisionhub plugin install official/nextjs`. `--plugin-version official/nestjs@1.1.0` selects a specific installed version; omit the flag only when selection is unambiguous. An explicit `--plugins` directory, or `PROVISIONHUB_PLUGINS`, can generate without opening SQLite when its definitions cover the requested generators. Managed installations use SQLite metadata for discovery and revalidate their artifacts before use. Plugin manifests and packaging formats have not changed. See the [plugin guide](docs/plugin-registry.md).
+Install managed official generators with `provisionhub plugin install official/nestjs` and `provisionhub plugin install official/nextjs`. `--plugin-version official/nestjs@1.1.0` selects a specific installed version; omit the flag only when selection is unambiguous. An explicit `--plugins` directory, or `PROVISIONHUB_PLUGINS`, can generate without opening SQLite when its definitions cover the requested generators. Managed installations use SQLite metadata for discovery and revalidate their artifacts before use. Optional configuration extends plugin manifests; package layout and integrity remain unchanged. Published 1.1.0 plugins remain compatible; configured 1.2.0 sources use local discovery until release. See the [plugin guide](docs/plugin-registry.md).
 
 ## Persistent application state
 
